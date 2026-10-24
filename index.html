@@ -153,6 +153,7 @@ input{font-size:16px}
 @media(prefers-reduced-motion:reduce){.nav{transition:none}}
 .mbox .sub{display:block;font-size:12px;color:var(--muted);margin:6px 0}
 .rr{border-top:1px solid #3f4147;padding:10px 0}
+.slowbar{font-size:12px;color:var(--muted);padding:0 4px 6px}.slowbar:empty{display:none}
 </style>
 </head>
 <body>
@@ -176,6 +177,7 @@ function load(){try{const d=JSON.parse(localStorage.getItem(K));if(d)return norm
 function save(){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
 
 /* ---------- helpers ---------- */
+let SINCE=Date.now();
 const ADMIN='vmthings',isAdmin=()=>me===ADMIN;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hue=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return h};
@@ -193,10 +195,12 @@ const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles']];
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nohistory','Can’t view chat history',1]];
+const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
 function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
 function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
-const can=(p,n=me)=>n===ADMIN||roleIds(n).some(id=>db.roles[id].p&&db.roles[id].p[p]===true);
+const hasP=(p,n=me)=>roleIds(n).some(id=>db.roles[id].p&&db.roles[id].p[p]===true);
+const can=(p,n=me)=>n===ADMIN||hasP(p,n);
 const inList=(l,n)=>Array.isArray(l)&&l.length&&roleIds(n).some(id=>l.includes(id));
 const canSee=(c,n=me)=>n===ADMIN||!Array.isArray(c.vis)||!c.vis.length||inList(c.vis,n);
 const canPost=(c,n=me)=>canSee(c,n)&&(!c.a||can('announce',n))&&(n===ADMIN||!Array.isArray(c.post)||!c.post.length||inList(c.post,n));
@@ -407,7 +411,7 @@ async function signIn(name,pw){
     if(!MQ.ready&&!['host','online','offline'].includes(NET.st))return 'Still connecting to the chat network. Wait a few seconds and try again.';
     const s=hx(crypto.getRandomValues(new Uint8Array(8)));db.users[name]={h:await hash(pw,s),s,roles:[],m:now()};changed();
   }
-  me=name;try{localStorage.setItem('hrs_me',me)}catch(e){}
+  me=name;SINCE=now();try{localStorage.setItem('hrs_me',me)}catch(e){}
   v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
   startSelf();render();return '';
 }
@@ -424,10 +428,22 @@ function addFriend(raw){
 }
 function accept(n){const f=db.fr[fk(me,n)];if(!f)return;f.st='ok';f.keep=Math.random()<.5?me:n;f.m=now();changed()}
 function dropEdge(n){const f=db.fr[fk(me,n)];if(!f)return;f.del=1;f.m=now();changed()}
+const slowSecs=c=>Math.min(86400,Math.max(0,Number(c&&c.slow)||0));
+const slowExempt=c=>can('bypass')||inList(c&&c.slowx,me);
+function slowLeft(c){
+  const sl=slowSecs(c);if(!sl||slowExempt(c))return 0;
+  const l=msgsOf('official:'+c.id).filter(m=>m.u===me).pop();
+  return l?Math.max(0,Math.ceil((l.t+sl*1000-now())/1000)):0;
+}
+const fmtSlow=s=>s>=3600?s/3600+'h':s>=60?s/60+'m':s+'s';
+function slowText(c){
+  const sl=slowSecs(c);if(!sl||!me||slowExempt(c))return '';
+  const l=slowLeft(c);return l?'Slowmode: you can send again in '+l+'s':'Slowmode is on: one message every '+fmtSlow(sl);
+}
 function send(text){
-  text=text.trim();if(!text||v.t==='home')return;
-  if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c))return}
-  const k=key();(db.msgs[k]=db.msgs[k]||[]).push({id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)});changed();
+  text=text.trim();if(!text||v.t==='home')return false;
+  if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c)||slowLeft(c)>0)return false}
+  const k=key();(db.msgs[k]=db.msgs[k]||[]).push({id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)});changed();return true;
 }
 function fmt(ts){
   const d=new Date(ts),t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -436,9 +452,9 @@ function fmt(ts){
 
 /* ---------- views ---------- */
 function msgsHtml(){
-  const list=msgsOf(key()),srv=v.t==='server',c=srv&&chan(v.ch);let prev=null,out='';
+  const srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));let list=msgsOf(key());if(nh)list=list.filter(m=>m.t>=SINCE);let prev=null,out='';
   const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer;
-  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p></div>`;
+  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
     const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
@@ -460,8 +476,8 @@ function hydrate(){document.querySelectorAll('video[data-vid]').forEach(async el
     el.src=vurl[id];
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
 })}
-function composer(ph,lock,att){
-  return `<form class="composer" data-a="send"><div class="cbox">${lock?'<input id="msgin" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message">'
+function composer(ph,lock,att,top){
+  return `<form class="composer" data-a="send">${top||''}<div class="cbox">${lock?'<input id="msgin" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message">'
   :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<input id="msgin" placeholder="${ph}" autocomplete="off" maxlength="2000" aria-label="Message">`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
 }
 function modalHtml(){
@@ -482,14 +498,17 @@ function modalHtml(){
   }else if(m.t==='del2'){
     c=`<h2>Confirm it’s you</h2><p class="mp">Enter your username and password to delete your account permanently.</p><input id="delname" placeholder="Username" autocomplete="off" aria-label="Username"><input id="delpw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><div id="derr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="delgo">Delete account</button></div>`;
   }else if(m.t==='roles'){
-    c=`<h2>Roles &amp; permissions</h2><div class="row" style="border-top:0"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">All permissions</span></div>${roleList().map(r=>`<div class="rr"><div class="row" style="border-top:0;padding:0 0 6px"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div><div class="chips">${PERMS.map(([k,l])=>`<button class="chip ${r.p&&r.p[k]===true?'on':''}" style="--c:${col(r.color)}" data-a="rperm" data-r="${esc(r.id)}" data-p="${k}">${l}</button>`).join('')}</div></div>`).join('')}
+    c=`<h2>Roles &amp; permissions</h2><div class="row" style="border-top:0"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">All permissions</span></div>${roleList().map(r=>`<div class="rr"><div class="row" style="border-top:0;padding:0 0 6px"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div><div class="chips">${PERMS.map(([k,l,x])=>`<button class="chip ${r.p&&r.p[k]===true?'on':''}" style="--c:${x?'#f87075':col(r.color)}" data-a="rperm" data-r="${esc(r.id)}" data-p="${k}">${l}</button>`).join('')}</div></div>`).join('')}
     <div class="cap">Create a role</div><div class="addbox"><input id="rname" placeholder="Role name" maxlength="24" aria-label="Role name"><input id="rcolor" type="color" value="#3ba55d" aria-label="Role color"><button class="btn" data-a="rnew">Create</button></div><div class="acts"><button class="btn sec" data-a="mclose">Done</button></div>`;
   }else if(m.t==='chname'){
     const add=m.mode==='add',ch=add?{}:(chan(m.id)||{}),cur=ch.name||'',id=esc(m.id||'');
     const chips=(f,key)=>roleList().map(r=>`<button class="chip ${Array.isArray(ch[key])&&ch[key].includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="${f}" data-n="${id}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet.</span>';
     const extra=add?'':`<div class="cap">Channel type</div><div class="chips"><button class="chip ${ch.a?'on':''}" style="--c:#f0b232" data-a="chann" data-n="${id}">Announcement-only</button></div><span class="sub">Only the Owner and roles with “Post announcements” can post.</span>
     <div class="cap">Who can see this channel</div><div class="chips">${chips('chvis','vis')}</div><span class="sub">${Array.isArray(ch.vis)&&ch.vis.length?'Private: only these roles (and the Owner) can see it.':'No roles selected: everyone can see it.'}</span>
-    <div class="cap">Who can post</div><div class="chips">${chips('chpost','post')}</div><span class="sub">${Array.isArray(ch.post)&&ch.post.length?'Only these roles (and the Owner) can post.':'No roles selected: everyone who can see it can post.'}</span>`;
+    <div class="cap">Who can post</div><div class="chips">${chips('chpost','post')}</div><span class="sub">${Array.isArray(ch.post)&&ch.post.length?'Only these roles (and the Owner) can post.':'No roles selected: everyone who can see it can post.'}</span>
+    <div class="cap">Slowmode</div><div class="chips">${SLOWS.map(([n,l])=>`<button class="chip ${(slowSecs(ch))===n?'on':''}" style="--c:#5865f2" data-a="chslow" data-n="${id}" data-s="${n}">${l}</button>`).join('')}</div><span class="sub">Members can send one message per interval. The Owner and roles with “Bypass slowmode” are exempt.</span>
+    <div class="cap">Exempt from slowmode here</div><div class="chips">${chips('chslowx','slowx')}</div>
+    <div class="cap">Can’t view history here</div><div class="chips">${chips('chnohist','nohist')}</div><span class="sub">These roles only see messages sent after they open the app.</span>`;
     c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
@@ -531,7 +550,7 @@ function render(){
       ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=!c?`<div class="main"><div class="mhead">${BURGER}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'))}</div>
+    main=!c?`<div class="main"><div class="mhead">${BURGER}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`)}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
@@ -585,7 +604,7 @@ async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NE
 async function dupChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
   for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b)}}catch(e){}}L.push(n)}
-  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vis:c.vis,post:c.post,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
+  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;
@@ -668,7 +687,8 @@ root.addEventListener('click',e=>{
   else if(a==='chadd'&&mcan())v.modal={t:'chname',mode:'add'};
   else if(a==='chren'&&mcan()&&chan(n))v.modal={t:'chname',mode:'ren',id:n};
   else if(a==='chann'&&mcan()&&db.ch[n]){const c=db.ch[n];if(c.a)delete c.a;else c.a=1;c.m=now();changed()}
-  else if((a==='chvis'||a==='chpost')&&mcan()&&db.ch[n]){const c=db.ch[n],f=a==='chvis'?'vis':'post',r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];c.m=now();changed()}
+  else if(a==='chslow'&&mcan()&&db.ch[n]){const c=db.ch[n],q=+b.dataset.s;if(SLOWS.some(x=>x[0]===q)){if(q)c.slow=q;else delete c.slow;c.m=now();changed()}}
+  else if(['chvis','chpost','chslowx','chnohist'].includes(a)&&mcan()&&db.ch[n]){const c=db.ch[n],f=({chvis:'vis',chpost:'post',chslowx:'slowx',chnohist:'nohist'})[a],r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];c.m=now();changed()}
   else if(a==='rperm'&&isAdmin()){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];r.m=now();changed()}}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
   else if(a==='cfgo'&&(mcan()||isAdmin())){const m=v.modal;v.modal=null;if(m.go==='chan')doDelChan(m.id);else if(m.go==='role')doDelRole(m.id)}
@@ -677,7 +697,7 @@ root.addEventListener('click',e=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();const f=e.target.closest('form');if(!f)return;
-  if(f.dataset.a==='send'){const i=document.getElementById('msgin');send(i.value);i.value='';render()}
+  if(f.dataset.a==='send'){const i=document.getElementById('msgin');if(send(i.value))i.value='';render()}
   else if(f.dataset.a==='addf'){addFriend(document.getElementById('friendin').value);render()}
 });
 root.addEventListener('change',e=>{
@@ -709,7 +729,7 @@ root.addEventListener('keydown',e=>{
   else if(id==='delpw'){e.preventDefault();delAccount()}
   else if(id==='chn'){e.preventDefault();document.querySelector('[data-a=chgo]').click()}
   else if(id==='rname'){e.preventDefault();document.querySelector('[data-a=rnew]').click()}
-  else if(id==='msgin'){e.preventDefault();send(e.target.value);e.target.value='';render()}
+  else if(id==='msgin'){e.preventDefault();if(send(e.target.value))e.target.value='';render()}
   else if(id==='friendin'){e.preventDefault();addFriend(e.target.value);render()}
 });
 
@@ -720,6 +740,7 @@ if(window.Peer){join();if(me)startSelf()}else{NET.st='offline';status()}
 mqInit().catch(()=>{});
 setTimeout(()=>{if(NET.st==='connecting'&&!MQ.cl.some(c=>c.connected)){NET.st='offline';status()}},12000);
 setInterval(dmTick,6000);
+setInterval(()=>{const el=document.getElementById('slowbar');if(el&&me&&v.t==='server'){const c=chan(v.ch);if(c)el.textContent=slowText(c)}},1000);
 const wake=()=>{
   if(document.visibilityState==='hidden'||!window.Peer)return;
   if(NET.host){if(!NET.hp||NET.hp.destroyed)join();else if(NET.hp.disconnected)try{NET.hp.reconnect()}catch(e){}}
