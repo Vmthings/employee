@@ -3,19 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P Device-Stored Chat</title>
+    <title>Discord P2P Chat</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #eceff1; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        #chat-container { width: 420px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 550px; overflow: hidden; }
-        #setup-panel { padding: 15px; background: #37474f; color: white; font-size: 14px; border-bottom: 2px solid #263238; }
-        #messages { flex: 1; padding: 20px; overflow-y: auto; background: #f8f9fa; }
-        .msg { margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; max-width: 75%; word-wrap: break-word; }
-        .msg.host { background: #e3f2fd; align-self: flex-start; margin-right: auto; }
-        .msg.guest { background: #e8f5e9; align-self: flex-end; margin-left: auto; }
-        .meta { font-size: 11px; color: #78909c; display: block; margin-bottom: 2px; }
-        #input-container { display: flex; padding: 12px; background: #ffffff; border-top: 1px solid #cfd8dc; }
-        #message-input { flex: 1; padding: 10px; border: 1px solid #b0bec5; border-radius: 6px; outline: none; }
-        #send-btn { padding: 10px 16px; background: #007bff; color: white; border: none; border-radius: 6px; margin-left: 8px; cursor: pointer; }
+        /* Discord Color Palette & Styling */
+        body { 
+            font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            background: #1e1f22; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            color: #dbdee1;
+        }
+        
+        #chat-container { 
+            width: 450px; 
+            background: #313338; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+            display: flex; 
+            flex-direction: column; 
+            height: 600px; 
+            overflow: hidden; 
+        }
+        
+        /* Setup Panel (Styled like a Discord Channel Header/Banner) */
+        #setup-panel { 
+            padding: 16px; 
+            background: #2b2d31; 
+            font-size: 14px; 
+            border-bottom: 1px solid #1f2023; 
+        }
+        
+        #host-section {
+            color: #949ba4;
+            margin-bottom: 10px;
+        }
+
+        #my-id {
+            color: #5865f2 !important; /* Discord Blurple */
+            font-weight: bold;
+            background: #1e1f22;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        #guest-section {
+            display: flex;
+            gap: 8px;
+        }
+
+        #peer-id-input { 
+            flex: 1;
+            padding: 8px 12px; 
+            background: #1e1f22;
+            border: none;
+            border-radius: 4px; 
+            color: #dbdee1;
+            outline: none;
+            font-size: 14px;
+        }
+        #peer-id-input::placeholder {
+            color: #949ba4;
+        }
+
+        #connect-btn { 
+            padding: 8px 16px; 
+            background: #248046; /* Discord Green */
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        #connect-btn:hover {
+            background: #1a6535;
+        }
+        
+        #status { 
+            margin-top: 8px; 
+            color: #949ba4; 
+            font-size: 12px; 
+        }
+        
+        /* Messages Window (Styled like Discord Text Channels) */
+        #messages { 
+            flex: 1; 
+            padding: 16px 0; 
+            overflow-y: auto; 
+            background: #313338; 
+            display: flex; 
+            flex-direction: column;
+        }
+        
+        /* Custom Scrollbar for Discord Vibe */
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        #messages::-webkit-scrollbar-track {
+            background: #2e3035;
+        }
+        #messages::-webkit-scrollbar-thumb {
+            background: #1a1b1e;
+            border-radius: 4px;
+        }
+
+        .msg-row {
+            display: flex;
+            padding: 4px 16px;
+            margin-top: 12px;
+        }
+        .msg-row:hover {
+            background: #2e3035;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+        .avatar.host { background: #5865f2; }  /* Blurple */
+        .avatar.guest { background: #eb459e; } /* Pink */
+
+        .msg-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .msg-header {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 4px;
+        }
+
+        .username { 
+            font-weight: 600; 
+            font-size: 16px;
+            margin-right: 8px; 
+        }
+        .username.host { color: #5865f2; }
+        .username.guest { color: #eb459e; }
+
+        .timestamp {
+            font-size: 12px;
+            color: #949ba4;
+        }
+
+        .text {
+            font-size: 15px;
+            color: #dbdee1;
+            line-height: 1.375rem;
+            word-break: break-word;
+        }
+        
+        /* Chat Input Box (Discord Channel Message Input Look) */
+        #input-container { 
+            padding: 0 16px 24px 16px; 
+            background: #313338; 
+        }
+        
+        .input-wrapper {
+            display: flex; 
+            background: #383a40; 
+            border-radius: 8px;
+            padding: 10px 16px;
+            align-items: center;
+        }
+
+        #message-input { 
+            flex: 1; 
+            background: transparent;
+            border: none;
+            outline: none; 
+            color: #dbdee1;
+            font-size: 15px;
+        }
+        #message-input::placeholder {
+            color: #6d737d;
+        }
+        #message-input:disabled::placeholder {
+            color: #4e5058;
+        }
+
+        #send-btn { 
+            background: transparent;
+            color: #949ba4; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold;
+            font-size: 14px;
+            padding: 0;
+            margin-left: 8px;
+            transition: color 0.2s;
+        }
+        #send-btn:hover:not(:disabled) {
+            color: #dbdee1;
+        }
+        #send-btn:disabled {
+            color: #4e5058;
+            cursor: not-allowed;
+        }
     </style>
     <!-- Import PeerJS Library -->
     <script src="https://unpkg.com"></script>
@@ -25,27 +222,29 @@
 <div id="chat-container">
     <div id="setup-panel">
         <div id="host-section">
-            <strong>Your ID:</strong> <span id="my-id" style="color: #ffeb3b; font-weight: bold;">Connecting to broker server...</span>
+            <strong>Your ID:</strong> <span id="my-id">Connecting...</span>
         </div>
-        <div id="guest-section" style="margin-top: 8px;">
-            <input type="text" id="peer-id-input" placeholder="Paste Friend's ID here..." style="padding: 4px; width: 200px;">
-            <button id="connect-btn" style="padding: 4px 8px;">Connect</button>
+        <div id="guest-section">
+            <input type="text" id="peer-id-input" placeholder="Enter friend's ID...">
+            <button id="connect-btn">Connect</button>
         </div>
-        <div id="status" style="margin-top: 8px; color: #b2dfdb; font-size: 12px;">Status: Initialising network pipeline...</div>
+        <div id="status">Status: Initialising connection pipeline...</div>
     </div>
     
-    <div id="messages" style="display: flex; flex-direction: column;"></div>
+    <div id="messages"></div>
     
     <div id="input-container">
-        <input type="text" id="message-input" placeholder="Type a message..." disabled>
-        <button id="send-btn" disabled>Send</button>
+        <div class="input-wrapper">
+            <input type="text" id="message-input" placeholder="You must connect to a peer first..." disabled>
+            <button id="send-btn" disabled>Send</button>
+        </div>
     </div>
 </div>
 
 <script>
     // Explicitly configure PeerJS cloud variables to bypass HTTPS blockages
     const peer = new Peer(undefined, {
-        host: '0.peerjs.com',
+        host: '://peerjs.com',
         port: 443,
         secure: true,
         path: '/'
@@ -64,7 +263,6 @@
 
     // 1. Success Listener: Cloud broker generates your identity
     peer.on('open', (id) => {
-        myIdDisplay.style.color = '#fff';
         myIdDisplay.textContent = id;
         statusDisplay.textContent = "Status: Online. Ready for direct incoming peer connections.";
     });
@@ -72,9 +270,9 @@
     // 2. Error Diagnostic Listener: Detects why it failed
     peer.on('error', (err) => {
         console.error("PeerJS Core Error:", err);
-        myIdDisplay.style.color = '#ff8a80';
+        myIdDisplay.style.color = '#f23f43'; // Discord Red
         myIdDisplay.textContent = "Connection Failure";
-        statusDisplay.innerHTML = `<span style="color: #ff8a80;">Error [${err.type}]: ${err.message}</span>`;
+        statusDisplay.innerHTML = `<span style="color: #f23f43;">Error [${err.type}]: ${err.message}</span>`;
     });
 
     // 3. HOST MODE: A remote peer pipes down your handshake connection
@@ -88,7 +286,7 @@
     connectBtn.addEventListener('click', () => {
         const targetId = peerIdInput.value.trim();
         if (targetId) {
-            statusDisplay.textContent = "Status: Directing handshake request to target peer hardware...";
+            statusDisplay.textContent = "Status: Directing handshake request to target peer...";
             conn = peer.connect(targetId);
             isHost = false;
             setupChatSystem();
@@ -98,19 +296,21 @@
     // 5. Establish real-time data frame listener bindings
     function setupChatSystem() {
         conn.on('open', () => {
-            statusDisplay.textContent = `Status: Direct network link verified. Connected as ${isHost ? 'Host' : 'Guest'}.`;
+            statusDisplay.textContent = `Status: Connected as ${isHost ? 'Host' : 'Guest'}.`;
             messageInput.disabled = false;
+            messageInput.placeholder = `Message #${isHost ? 'guest-chat' : 'host-chat'}`;
             sendBtn.disabled = false;
         });
 
-        // Pull message frames directly out of your network interface card (RAM-to-RAM)
+        // Pull message frames directly out of network memory
         conn.on('data', (data) => {
             appendMessage(data.sender, data.text, data.sender === 'Host' ? 'host' : 'guest');
         });
 
         conn.on('close', () => {
-            statusDisplay.textContent = "Status: Direct network socket closed. Peer disconnected.";
+            statusDisplay.textContent = "Status: Friend disconnected.";
             messageInput.disabled = true;
+            messageInput.placeholder = "You must connect to a peer first...";
             sendBtn.disabled = true;
         });
     }
@@ -129,17 +329,3 @@
     }
 
     function appendMessage(sender, text, typeClass) {
-        const msgEl = document.createElement('div');
-        msgEl.className = `msg ${typeClass}`;
-        msgEl.innerHTML = `<span class="meta">${sender}</span>${text}`;
-        messagesDiv.appendChild(msgEl);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-    });
-</script>
-</body>
-</html>
