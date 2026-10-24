@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Device-Stored Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #eceff1; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        #chat-container { width: 420px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 550px; overflow: hidden; }
+        #setup-panel { padding: 15px; background: #37474f; color: white; font-size: 14px; border-bottom: 2px solid #263238; }
+        #messages { flex: 1; padding: 20px; overflow-y: auto; background: #f8f9fa; }
+        .msg { margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; max-width: 75%; word-wrap: break-word; }
+        .msg.host { background: #e3f2fd; align-self: flex-start; margin-right: auto; }
+        .msg.guest { background: #e8f5e9; align-self: flex-end; margin-left: auto; }
+        .meta { font-size: 11px; color: #78909c; display: block; margin-bottom: 2px; }
+        #input-container { display: flex; padding: 12px; background: #ffffff; border-top: 1px solid #cfd8dc; }
+        #message-input { flex: 1; padding: 10px; border: 1px solid #b0bec5; border-radius: 6px; outline: none; }
+        #send-btn { padding: 10px 16px; background: #007bff; color: white; border: none; border-radius: 6px; margin-left: 8px; cursor: pointer; }
+    </style>
+    <!-- Import PeerJS Library -->
+    <script src="https://unpkg.com"></script>
+</head>
+<body>
+
+<div id="chat-container">
+    <div id="setup-panel">
+        <div id="host-section">
+            <strong>Your ID:</strong> <span id="my-id">Loading...</span> (Share this with your friend)
+        </div>
+        <div id="guest-section" style="margin-top: 8px;">
+            <input type="text" id="peer-id-input" placeholder="Paste Friend's ID here..." style="padding: 4px; width: 200px;">
+            <button id="connect-btn" style="padding: 4px 8px;">Connect</button>
+        </div>
+        <div id="status" style="margin-top: 8px; color: #ffeb3b; font-weight: bold;">Status: Disconnected</div>
+    </div>
+    
+    <div id="messages" style="display: flex; flex-direction: column;"></div>
+    
+    <div id="input-container">
+        <input type="text" id="message-input" placeholder="Type a message..." disabled>
+        <button id="send-btn" disabled>Send</button>
+    </div>
+</div>
+
+<!-- Embedded logic handles peer-to-peer data pipeline -->
+<script>
+    // Initialize PeerJS (Data passes directly device-to-device)
+    const peer = new Peer();
+
+    let conn = null;
+    let isHost = true;
+
+    const myIdDisplay = document.getElementById('my-id');
+    const peerIdInput = document.getElementById('peer-id-input');
+    const connectBtn = document.getElementById('connect-btn');
+    const statusDisplay = document.getElementById('status');
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    // 1. Display your unique ID once connected to the server
+    peer.on('open', (id) => {
+        myIdDisplay.textContent = id;
+        statusDisplay.textContent = "Status: Waiting for someone to connect...";
+    });
+
+    // 2. HOST MODE: Someone connects to you using your ID
+    peer.on('connection', (connection) => {
+        conn = connection;
+        isHost = true;
+        setupChatSystem();
+    });
+
+    // 3. GUEST MODE: You actively connect to someone else's ID
+    connectBtn.addEventListener('click', () => {
+        const targetId = peerIdInput.value.trim();
+        if (targetId) {
+            conn = peer.connect(targetId);
+            isHost = false;
+            setupChatSystem();
+        }
+    });
+
+    // 4. Wire up the data channels once connected
+    function setupChatSystem() {
+        statusDisplay.textContent = `Status: Connected as ${isHost ? 'Host' : 'Guest'}`;
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+
+        // Listen for incoming data packets directly from the other device
+        conn.on('data', (data) => {
+            appendMessage(data.sender, data.text, data.sender === 'Host' ? 'host' : 'guest');
+        });
+
+        conn.on('close', () => {
+            statusDisplay.textContent = "Status: Friend disconnected.";
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+        });
+    }
+
+    // 5. Send a message packet over the direct network pipeline
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (text && conn) {
+            const senderLabel = isHost ? 'Host' : 'Guest';
+            const payload = { sender: senderLabel, text: text };
+            
+            // Send directly to peer's hardware memory pipeline
+            conn.send(payload);
+            
+            // Show it on your own screen
+            appendMessage(senderLabel, text, isHost ? 'host' : 'guest');
+            messageInput.value = '';
+        }
+    }
+
+    function appendMessage(sender, text, typeClass) {
+        const msgEl = document.createElement('div');
+        msgEl.className = `msg ${typeClass}`;
+        msgEl.innerHTML = `<span class="meta">${sender}</span>${text}`;
+        messagesDiv.appendChild(msgEl);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Event Listeners for UI
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+</script>
+</body>
+</html>
