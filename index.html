@@ -1,331 +1,468 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord P2P Chat</title>
-    <style>
-        /* Discord Color Palette & Styling */
-        body { 
-            font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-            background: #1e1f22; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            margin: 0; 
-            color: #dbdee1;
-        }
-        
-        #chat-container { 
-            width: 450px; 
-            background: #313338; 
-            border-radius: 8px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
-            display: flex; 
-            flex-direction: column; 
-            height: 600px; 
-            overflow: hidden; 
-        }
-        
-        /* Setup Panel (Styled like a Discord Channel Header/Banner) */
-        #setup-panel { 
-            padding: 16px; 
-            background: #2b2d31; 
-            font-size: 14px; 
-            border-bottom: 1px solid #1f2023; 
-        }
-        
-        #host-section {
-            color: #949ba4;
-            margin-bottom: 10px;
-        }
-
-        #my-id {
-            color: #5865f2 !important; /* Discord Blurple */
-            font-weight: bold;
-            background: #1e1f22;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-        }
-        
-        #guest-section {
-            display: flex;
-            gap: 8px;
-        }
-
-        #peer-id-input { 
-            flex: 1;
-            padding: 8px 12px; 
-            background: #1e1f22;
-            border: none;
-            border-radius: 4px; 
-            color: #dbdee1;
-            outline: none;
-            font-size: 14px;
-        }
-        #peer-id-input::placeholder {
-            color: #949ba4;
-        }
-
-        #connect-btn { 
-            padding: 8px 16px; 
-            background: #248046; /* Discord Green */
-            color: white; 
-            border: none; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-        #connect-btn:hover {
-            background: #1a6535;
-        }
-        
-        #status { 
-            margin-top: 8px; 
-            color: #949ba4; 
-            font-size: 12px; 
-        }
-        
-        /* Messages Window (Styled like Discord Text Channels) */
-        #messages { 
-            flex: 1; 
-            padding: 16px 0; 
-            overflow-y: auto; 
-            background: #313338; 
-            display: flex; 
-            flex-direction: column;
-        }
-        
-        /* Custom Scrollbar for Discord Vibe */
-        #messages::-webkit-scrollbar {
-            width: 8px;
-        }
-        #messages::-webkit-scrollbar-track {
-            background: #2e3035;
-        }
-        #messages::-webkit-scrollbar-thumb {
-            background: #1a1b1e;
-            border-radius: 4px;
-        }
-
-        .msg-row {
-            display: flex;
-            padding: 4px 16px;
-            margin-top: 12px;
-        }
-        .msg-row:hover {
-            background: #2e3035;
-        }
-
-        .avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            margin-right: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: white;
-            flex-shrink: 0;
-        }
-        .avatar.host { background: #5865f2; }  /* Blurple */
-        .avatar.guest { background: #eb459e; } /* Pink */
-
-        .msg-content {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .msg-header {
-            display: flex;
-            align-items: baseline;
-            margin-bottom: 4px;
-        }
-
-        .username { 
-            font-weight: 600; 
-            font-size: 16px;
-            margin-right: 8px; 
-        }
-        .username.host { color: #5865f2; }
-        .username.guest { color: #eb459e; }
-
-        .timestamp {
-            font-size: 12px;
-            color: #949ba4;
-        }
-
-        .text {
-            font-size: 15px;
-            color: #dbdee1;
-            line-height: 1.375rem;
-            word-break: break-word;
-        }
-        
-        /* Chat Input Box (Discord Channel Message Input Look) */
-        #input-container { 
-            padding: 0 16px 24px 16px; 
-            background: #313338; 
-        }
-        
-        .input-wrapper {
-            display: flex; 
-            background: #383a40; 
-            border-radius: 8px;
-            padding: 10px 16px;
-            align-items: center;
-        }
-
-        #message-input { 
-            flex: 1; 
-            background: transparent;
-            border: none;
-            outline: none; 
-            color: #dbdee1;
-            font-size: 15px;
-        }
-        #message-input::placeholder {
-            color: #6d737d;
-        }
-        #message-input:disabled::placeholder {
-            color: #4e5058;
-        }
-
-        #send-btn { 
-            background: transparent;
-            color: #949ba4; 
-            border: none; 
-            cursor: pointer; 
-            font-weight: bold;
-            font-size: 14px;
-            padding: 0;
-            margin-left: 8px;
-            transition: color 0.2s;
-        }
-        #send-btn:hover:not(:disabled) {
-            color: #dbdee1;
-        }
-        #send-btn:disabled {
-            color: #4e5058;
-            cursor: not-allowed;
-        }
-    </style>
-    <!-- Import PeerJS Library -->
-    <script src="https://unpkg.com"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hrs chat</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='white'/%3E%3Ctext x='16' y='21' font-size='13' font-weight='700' text-anchor='middle' font-family='Montserrat,sans-serif'%3Ehrs%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#313338;--side:#2b2d31;--dark:#1e1f22;--hover:#35373c;--text:#dbdee1;--muted:#949ba4;--blurple:#5865f2;--green:#23a559;--red:#da373c}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:15px/1.4 "gg sans","Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid #00a8fc;outline-offset:2px}
+.logo{font-family:Montserrat,"Segoe UI",sans-serif;font-weight:700;letter-spacing:-.04em;line-height:1;color:#000;background:#fff;display:flex;align-items:center;justify-content:center;user-select:none}
+html,body,#root{width:100%;height:100%;overflow:hidden}
+#app{display:flex;width:100%;height:100vh;height:100dvh}
+.rail{width:72px;background:var(--dark);display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0;flex:none}
+.rail .sep{width:32px;height:2px;background:var(--hover);border-radius:1px}
+.ric{position:relative;width:48px;height:48px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:22px;transition:border-radius .15s,background .15s}
+.ric:hover,.ric.on{border-radius:16px}
+.ric.home.on,.ric.home:hover{background:var(--blurple)}
+.ric.logo{font-size:17px;border-radius:50%}
+.ric.logo.on,.ric.logo:hover{border-radius:16px}
+.ric.on::before{content:"";position:absolute;left:-12px;width:4px;height:40px;background:#fff;border-radius:0 4px 4px 0}
+.badge{position:absolute;right:-4px;bottom:-4px;background:var(--red);color:#fff;font-size:12px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;border:3px solid var(--dark);box-sizing:content-box}
+.side{width:240px;background:var(--side);display:flex;flex-direction:column;flex:none}
+.shead{height:48px;padding:0 16px;display:flex;align-items:center;font-weight:600;border-bottom:1px solid var(--dark);gap:8px;flex:none}
+.slist{flex:1;overflow:auto;padding:8px}
+.item{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border-radius:4px;color:var(--muted);text-align:left;min-height:38px}
+.item:hover{background:var(--hover);color:var(--text)}
+.item.on{background:#404249;color:#fff}
+.item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap{font-size:12px;font-weight:600;color:var(--muted);padding:16px 8px 4px}
+.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:none;font-size:14px;text-transform:uppercase}
+.me{height:52px;background:#232428;display:flex;align-items:center;gap:8px;padding:0 8px;flex:none}
+.me .nm{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me button{color:var(--muted);padding:6px 8px;border-radius:4px;font-size:13px}
+.me button:hover{background:var(--hover);color:var(--text)}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.mhead{height:48px;padding:0 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--dark);font-weight:600;flex:none}
+.mhead .hash{color:var(--muted);font-size:22px;font-weight:400}
+.tab{padding:2px 10px;border-radius:4px;color:var(--muted)}
+.tab:hover{background:var(--hover);color:var(--text)}
+.tab.on{background:#404249;color:#fff}
+.tab.add{background:var(--green);color:#fff}
+.tab.add.on{background:none;color:var(--green)}
+.body{flex:1;display:flex;min-height:0}
+.chat{flex:1;display:flex;flex-direction:column;min-width:0}
+#msgs{flex:1;overflow:auto;padding:16px 0}
+.msg{display:flex;gap:16px;padding:2px 16px 2px 16px}
+.msg:hover{background:rgba(2,2,2,.06)}
+.msg.first{margin-top:16px}
+.msg .gut{width:40px;flex:none;font-size:10px;color:var(--muted);text-align:center;padding-top:5px;visibility:hidden}
+.msg:hover .gut{visibility:visible}
+.msg .av{width:40px;height:40px;font-size:16px}
+.msg .who{font-weight:600;color:#fff}
+.msg .ts{font-size:12px;color:var(--muted);margin-left:8px}
+.msg .tx{white-space:pre-wrap;overflow-wrap:anywhere}
+.intro{padding:16px;margin-top:auto}
+.intro h2{margin:8px 0 4px;font-size:28px}
+.intro p{margin:0;color:var(--muted)}
+#msgs{display:flex;flex-direction:column}
+.composer{padding:0 16px 24px;flex:none}
+.composer input{width:100%;background:#383a40;border:0;border-radius:8px;padding:12px 16px}
+.composer input::placeholder{color:var(--muted)}
+.members{width:240px;background:var(--side);padding:8px;overflow:auto;flex:none}
+.pane{flex:1;overflow:auto;padding:16px 24px}
+.pane h3{margin:0 0 12px;font-size:12px;font-weight:600;color:var(--muted)}
+.row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-top:1px solid #3f4147;border-radius:0}
+.row .nm{flex:1;font-weight:600}
+.row .sub{font-size:12px;color:var(--muted);font-weight:400;display:block}
+.btn{padding:8px 14px;border-radius:4px;background:var(--blurple);color:#fff;font-weight:600}
+.btn:hover{background:#4752c4}
+.btn.sec{background:#4e5058}.btn.sec:hover{background:#6d6f78}
+.btn.no{background:#4e5058}.btn.no:hover{background:var(--red)}
+.addbox{background:#1e1f22;border-radius:8px;display:flex;gap:8px;padding:8px 8px 8px 16px;max-width:640px;border:1px solid transparent}
+.addbox input{flex:1;background:none;border:0;outline:0}
+.addbox:focus-within{border-color:#00a8fc}
+.note{margin:12px 0 0;font-size:14px;max-width:640px}
+.note.ok{color:#57f287}.note.er{color:#f87075}
+.empty{color:var(--muted);text-align:center;padding:48px 16px}
+.login{position:fixed;inset:0;background:var(--blurple);display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:var(--bg);border-radius:8px;padding:32px;width:100%;max-width:440px;box-shadow:0 2px 10px rgba(0,0,0,.3);text-align:center}
+.card .logo{width:88px;height:88px;border-radius:24px;font-size:38px;margin:0 auto 16px}
+.card h1{margin:0 0 4px;font-size:24px}
+.card p{margin:0 0 20px;color:var(--muted)}
+.card input{width:100%;background:var(--dark);border:0;border-radius:4px;padding:12px;margin-bottom:12px;text-align:left}
+.card .btn{width:100%;padding:12px}
+.card .known{margin-top:20px;text-align:left}
+.card .known .item{color:var(--text)}
+.msg{position:relative}
+.msg>div:not(.gut){min-width:0}
+.tap{cursor:pointer}.who.tap:hover{text-decoration:underline}
+.av.big{width:80px;height:80px;font-size:34px}
+.vid{display:block;max-width:min(420px,100%);max-height:320px;border-radius:8px;margin-top:4px;background:#000}
+.del{position:absolute;right:16px;top:-10px;display:none;background:var(--side);border:1px solid var(--dark);border-radius:4px;padding:2px 10px;font-size:13px;color:#f87075}
+.msg:hover .del,.del:focus-visible{display:block}
+.cbox{display:flex;align-items:center;background:#383a40;border-radius:8px}
+.cbox input{background:none;flex:1;width:auto;min-width:0}
+.clip{width:44px;height:44px;font-size:24px;color:var(--muted);flex:none}.clip:hover{color:#fff}
+.cp{display:flex;align-items:center;justify-content:space-between}
+.plus{font-size:20px;line-height:1;color:var(--muted);width:24px;height:24px}.plus:hover{color:#fff}
+.tools{margin-left:auto;display:flex;gap:8px}
+.tab.rm:hover{background:var(--red);color:#fff}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.mbox{position:relative;background:var(--bg);border-radius:8px;padding:24px;width:100%;max-width:420px;max-height:92%;overflow:auto}
+.mbox h2{margin:0 0 8px}.mp{margin:0 0 12px;color:var(--muted)}
+.mbox>input:not([type=file]){width:100%;background:var(--dark);border:0;border-radius:4px;padding:10px;margin:4px 0}
+.mbox .addbox input{margin:0;width:auto}
+.mbox .addbox input:not([type=color]){flex:1;min-width:0}
+.addbox input[type=color]{flex:none;width:36px;height:32px;padding:0;border:0;background:none;cursor:pointer}
+.x{position:absolute;top:10px;right:12px;color:var(--muted);padding:4px 8px;border-radius:4px}.x:hover{background:var(--hover);color:#fff}
+.phead{display:flex;gap:16px;align-items:center;margin-bottom:8px;padding-right:24px}
+.pname{font-size:20px;font-weight:700;margin-bottom:6px;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-block;padding:2px 10px;border-radius:12px;border:1px solid var(--c);color:var(--c);font-size:13px}
+.chip.on{background:color-mix(in srgb,var(--c) 22%,transparent)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.row .nm.tap:hover{text-decoration:underline}
+.ctx{position:fixed;z-index:20;width:190px;background:#111214;border-radius:4px;padding:6px;box-shadow:0 8px 16px rgba(0,0,0,.4)}
+.ctx button{display:block;width:100%;text-align:left;padding:7px 8px;border-radius:2px;color:var(--text);font-size:14px}
+.ctx button:hover{background:var(--blurple);color:#fff}
+.ctx button.danger{color:#f87075}.ctx button.danger:hover{background:var(--red);color:#fff}
+@media(max-width:820px){.members{display:none}.side{width:200px}}
+@media(max-width:560px){.rail{width:60px}.side{width:150px}.pane{padding:12px}}
+</style>
 </head>
 <body>
-
-<div id="chat-container">
-    <div id="setup-panel">
-        <div id="host-section">
-            <strong>Your ID:</strong> <span id="my-id">Connecting...</span>
-        </div>
-        <div id="guest-section">
-            <input type="text" id="peer-id-input" placeholder="Enter friend's ID...">
-            <button id="connect-btn">Connect</button>
-        </div>
-        <div id="status">Status: Initialising connection pipeline...</div>
-    </div>
-    
-    <div id="messages"></div>
-    
-    <div id="input-container">
-        <div class="input-wrapper">
-            <input type="text" id="message-input" placeholder="You must connect to a peer first..." disabled>
-            <button id="send-btn" disabled>Send</button>
-        </div>
-    </div>
-</div>
-
+<div id="root"></div>
 <script>
-    // Explicitly configure PeerJS cloud variables to bypass HTTPS blockages
-    const peer = new Peer(undefined, {
-        host: '://peerjs.com',
-        port: 443,
-        secure: true,
-        path: '/'
-    });
+const K='hrs_chat_v1';
+const root=document.getElementById('root');
+let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null};
+try{me=localStorage.getItem('hrs_me')}catch(e){}
+if(me&&!db.users[me])me=null;
 
-    let conn = null;
-    let isHost = true;
+function norm(d){d.roles=d.roles||{employee:{name:'Employee',color:'#5865f2'}};d.roles.owner={name:'Owner',color:'#f0b232'};d.channels=d.channels||[{id:'general',name:'general'},{id:'announcements',name:'announcements',a:1}];return d}
+function load(){try{const d=JSON.parse(localStorage.getItem(K));if(d&&d.users&&d.msgs)return norm(d)}catch(e){}return norm({users:{},msgs:{}})}
+function save(){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function hue(n){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return h}
+const ADMIN='vmthings',isAdmin=()=>me===ADMIN;
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const chan=id=>db.channels.find(c=>c.id===id);
+const av=(n,c,big)=>{const p=db.users[n]&&db.users[n].pic;return `<div class="av${big?' big':''}${c?' tap':''}"${c?` data-a="prof" data-n="${esc(n)}"`:''} style="${p?`background:url(${p}) center/cover`:`background:hsl(${hue(n)} 55% 45%)`}">${p?'':esc(n[0])}</div>`};
+function rolesOf(n){const u=db.users[n]||{},r=[];if(n===ADMIN)r.push(db.roles.owner);(u.roles||[]).forEach(id=>db.roles[id]&&r.push(db.roles[id]));if(!r.length&&db.roles.employee)r.push(db.roles.employee);return r}
+const rc=n=>{const r=rolesOf(n)[0];return r?r.color:'#fff'};
+const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(n)}</span>`;
+let _idb;const idb=()=>_idb||(_idb=new Promise((res,rej)=>{const r=indexedDB.open('hrs_media',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+const tx=async(m,f)=>{const d=await idb();return new Promise((res,rej)=>{const t=d.transaction('f',m),o=f(t.objectStore('f'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
+const putBlob=(k,b)=>tx('readwrite',x=>x.put(b,k)),getBlob=k=>tx('readonly',x=>x.get(k)),delBlob=k=>tx('readwrite',x=>x.delete(k));
+const vurl={};
+const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+[me,v.peer].sort().join('|');
+const U=()=>db.users[me];
+const logoIc=(cls)=>`<div class="logo ${cls||''}">hrs</div>`;
 
-    const myIdDisplay = document.getElementById('my-id');
-    const peerIdInput = document.getElementById('peer-id-input');
-    const connectBtn = document.getElementById('connect-btn');
-    const statusDisplay = document.getElementById('status');
-    const messagesDiv = document.getElementById('messages');
-    const messageInput = document.getElementById('message-input');
-    const sendBtn = document.getElementById('send-btn');
+const hx=a=>Array.from(a).map(x=>x.toString(16).padStart(2,'0')).join('');
+async function hash(pw,salt){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pw));return hx(new Uint8Array(b))}
+async function signIn(name,pw){
+  name=name.trim().toLowerCase();
+  if(!/^[a-z0-9._-]{2,20}$/.test(name))return 'Use 2–20 letters, numbers, dots, dashes or underscores for the username.';
+  if(pw.length<4)return 'Password must be at least 4 characters.';
+  if(!window.crypto||!crypto.subtle)return 'Passwords need a secure (https) page. Open the site over https.';
+  let u=db.users[name];
+  if(u&&u.h){if(await hash(pw,u.s)!==u.h)return 'Wrong username or password.'}
+  else{const s=hx(crypto.getRandomValues(new Uint8Array(8)));u=db.users[name]=u||{friends:[],inc:[],out:[]};u.s=s;u.h=await hash(pw,s);save()}
+  me=name;try{localStorage.setItem('hrs_me',me)}catch(e){}
+  v={t:'home',tab:'all',ch:'general',peer:null,note:null};
+  render();return '';
+}
+function signOut(){me=null;try{localStorage.removeItem('hrs_me')}catch(e){}render()}
 
-    // 1. Success Listener: Cloud broker generates your identity
-    peer.on('open', (id) => {
-        myIdDisplay.textContent = id;
-        statusDisplay.textContent = "Status: Online. Ready for direct incoming peer connections.";
-    });
+function addFriend(raw){
+  const n=raw.trim().toLowerCase().replace(/^@/,'');
+  const t=db.users[n],u=U();
+  if(!n)return v.note=['er','Enter a username.'];
+  if(n===me)return v.note=['er','You can’t add yourself.'];
+  if(!t)return v.note=['er','No employee “'+n+'” has signed in on this device yet.'];
+  if(u.friends.includes(n))return v.note=['er','You’re already friends with '+n+'.'];
+  if(u.inc.includes(n)){accept(n);return v.note=['ok','You and '+n+' are now friends.']}
+  if(u.out.includes(n))return v.note=['er','Request to '+n+' is already pending.'];
+  u.out.push(n);t.inc.push(me);save();
+  v.note=['ok','Request sent to '+n+'. They can accept it when they sign in.'];
+}
+function accept(n){
+  const u=U(),t=db.users[n];
+  u.inc=u.inc.filter(x=>x!==n);u.out=u.out.filter(x=>x!==n);
+  if(t){t.inc=t.inc.filter(x=>x!==me);t.out=t.out.filter(x=>x!==me);if(!t.friends.includes(me))t.friends.push(me)}
+  if(!u.friends.includes(n))u.friends.push(n);save();
+}
+function drop(n){
+  const u=U(),t=db.users[n];
+  u.inc=u.inc.filter(x=>x!==n);u.out=u.out.filter(x=>x!==n);
+  if(t){t.inc=t.inc.filter(x=>x!==me);t.out=t.out.filter(x=>x!==me)}save();
+}
+function unfriend(n){
+  const u=U(),t=db.users[n];
+  u.friends=u.friends.filter(x=>x!==n);if(t)t.friends=t.friends.filter(x=>x!==me);save();
+}
+function send(text){
+  text=text.trim();if(!text||v.t==='home')return;
+  if(v.t==='server'){const c=chan(v.ch);if(!c||(c.a&&!isAdmin()))return}
+  const k=key();(db.msgs[k]=db.msgs[k]||[]).push({u:me,t:Date.now(),x:text.slice(0,2000)});save();
+}
+function fmt(ts){
+  const d=new Date(ts),t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  return d.toDateString()===new Date().toDateString()?'Today at '+t:d.toLocaleDateString()+' '+t;
+}
+function msgsHtml(){
+  const list=db.msgs[key()]||[],srv=v.t==='server',c=srv&&chan(v.ch);let prev=null,out='';
+  const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer;
+  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only the owner can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p></div>`;
+  list.forEach((m,i)=>{
+    const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
+    const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const del=isAdmin()?`<button class="del" data-a="delmsg" data-i="${i}" aria-label="Delete message">Delete</button>`:'';
+    out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
+      :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
+    prev=m;
+  });
+  return out;
+}
+function hydrate(){document.querySelectorAll('video[data-vid]').forEach(async el=>{
+  const id=el.dataset.vid;
+  try{if(!vurl[id]){const b=await getBlob(id);if(!b)throw 0;vurl[id]=URL.createObjectURL(b)}el.src=vurl[id]}
+  catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t stored on this device.';el.replaceWith(p)}
+})}
+function composer(ph,lock,att){
+  return `<form class="composer" data-a="send"><div class="cbox">${lock?'<input id="msgin" disabled placeholder="Only the owner can post in this channel" aria-label="Message">'
+  :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<input id="msgin" placeholder="${ph}" autocomplete="off" maxlength="2000" aria-label="Message">`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
+}
+function modalHtml(){
+  const m=v.modal;if(!m)return '';let c='';
+  if(m.t==='prof'){
+    const n=m.n,t=db.users[n];if(!t)return '';
+    const self=n===me,u=U(),N=esc(n);let act='';
+    if(self)act=`<button class="btn sec" data-a="pickpic">Change picture</button>${t.pic?'<button class="btn sec" data-a="rmpic">Remove picture</button>':''}<button class="btn no" data-a="del1">Delete account</button><input type="file" id="picin" accept="image/*" hidden>`;
+    else if(u.friends.includes(n))act=`<button class="btn" data-a="pfmsg" data-n="${N}">Message</button><button class="btn no" data-a="pfunf" data-n="${N}">Remove friend</button>`;
+    else if(u.inc.includes(n))act=`<button class="btn" data-a="pfacc" data-n="${N}">Accept request</button><button class="btn no" data-a="pfrej" data-n="${N}">Decline</button>`;
+    else if(u.out.includes(n))act=`<button class="btn sec" data-a="pfrej" data-n="${N}">Cancel request</button>`;
+    else act=`<button class="btn" data-a="pfadd" data-n="${N}">Add friend</button>`;
+    const ids=Object.keys(db.roles).filter(id=>id!=='owner');
+    const rl=isAdmin()?`<div class="cap">Set roles</div><div class="chips">${ids.map(id=>`<button class="chip ${(t.roles||[]).includes(id)?'on':''}" style="--c:${db.roles[id].color}" data-a="pfrole" data-n="${N}" data-r="${id}">${esc(db.roles[id].name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
+    c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${N}</div><div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${r.color}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
+  }else if(m.t==='del1'){
+    c=`<h2>Delete your account?</h2><p class="mp">This removes your profile, your friendships and every message you’ve sent on this device. It can’t be undone.</p><div class="acts"><button class="btn sec" data-a="mclose">Keep my account</button><button class="btn no" data-a="del2">Continue</button></div>`;
+  }else if(m.t==='del2'){
+    c=`<h2>Confirm it’s you</h2><p class="mp">Enter your username and password to delete your account permanently.</p><input id="delname" placeholder="Username" autocomplete="off" aria-label="Username"><input id="delpw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><div id="derr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="delgo">Delete account</button></div>`;
+  }else if(m.t==='roles'){
+    c=`<h2>Roles</h2>${Object.entries(db.roles).map(([id,r])=>`<div class="row"><span class="chip on" style="--c:${r.color}">${esc(r.name)}</span><span class="nm"></span>${id==='owner'?'<span class="sub">Built in</span>':`<button class="btn no" data-a="rdel" data-r="${id}">Delete</button>`}</div>`).join('')}
+    <div class="cap">Create a role</div><div class="addbox"><input id="rname" placeholder="Role name" maxlength="24" aria-label="Role name"><input id="rcolor" type="color" value="#3ba55d" aria-label="Role color"><button class="btn" data-a="rnew">Create</button></div><div class="acts"><button class="btn sec" data-a="mclose">Done</button></div>`;
+  }
+  if(m.t==='chname'){const add=m.mode==='add',cur=add?'':chan(m.id).name;
+    c=`<h2>${add?'Create channel':'Rename channel'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
+  }else if(m.t==='confirm'){
+    c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
+  }else if(m.t==='alert'){
+    c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn" data-a="mclose">OK</button></div>`;
+  }
+  return `<div class="modal"><div class="mbox" role="dialog" aria-modal="true">${c}<button class="x" data-a="mclose" aria-label="Close">✕</button></div></div>`;
+}
 
-    // 2. Error Diagnostic Listener: Detects why it failed
-    peer.on('error', (err) => {
-        console.error("PeerJS Core Error:", err);
-        myIdDisplay.style.color = '#f23f43'; // Discord Red
-        myIdDisplay.textContent = "Connection Failure";
-        statusDisplay.innerHTML = `<span style="color: #f23f43;">Error [${err.type}]: ${err.message}</span>`;
-    });
-
-    // 3. HOST MODE: A remote peer pipes down your handshake connection
-    peer.on('connection', (connection) => {
-        conn = connection;
-        isHost = true;
-        setupChatSystem();
-    });
-
-    // 4. GUEST MODE: Actively target and bind to a remote peer's ID
-    connectBtn.addEventListener('click', () => {
-        const targetId = peerIdInput.value.trim();
-        if (targetId) {
-            statusDisplay.textContent = "Status: Directing handshake request to target peer...";
-            conn = peer.connect(targetId);
-            isHost = false;
-            setupChatSystem();
-        }
-    });
-
-    // 5. Establish real-time data frame listener bindings
-    function setupChatSystem() {
-        conn.on('open', () => {
-            statusDisplay.textContent = `Status: Connected as ${isHost ? 'Host' : 'Guest'}.`;
-            messageInput.disabled = false;
-            messageInput.placeholder = `Message #${isHost ? 'guest-chat' : 'host-chat'}`;
-            sendBtn.disabled = false;
-        });
-
-        // Pull message frames directly out of network memory
-        conn.on('data', (data) => {
-            appendMessage(data.sender, data.text, data.sender === 'Host' ? 'host' : 'guest');
-        });
-
-        conn.on('close', () => {
-            statusDisplay.textContent = "Status: Friend disconnected.";
-            messageInput.disabled = true;
-            messageInput.placeholder = "You must connect to a peer first...";
-            sendBtn.disabled = true;
-        });
+function render(){
+  const act=document.activeElement,typed=act&&act.tagName==='INPUT'&&['text','password'].includes(act.type)?{id:act.id,val:act.value}:null;
+  if(!me){
+    const names=Object.keys(db.users);
+    root.innerHTML=`<div class="login"><div class="card"><div class="logo">hrs</div><h1>Welcome to hrs chat</h1><p>Sign in with your username and password. A new username creates an account on this device.</p>
+    <input id="uname" placeholder="Username" maxlength="20" autocomplete="username" aria-label="Username" autofocus>
+    <input id="pw" type="password" placeholder="Password (4+ characters)" maxlength="100" autocomplete="current-password" aria-label="Password">
+    <button class="btn" data-a="login">Continue</button><div id="lerr" class="note er" style="margin-top:8px"></div>
+    ${names.length?`<div class="known"><div class="cap">Employees on this device</div>${names.map(n=>`<button class="item" data-a="quick" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span></button>`).join('')}</div>`:''}</div></div>`;
+    return;
+  }
+  if(v.t==='server'&&!chan(v.ch))v.ch=db.channels[0].id;
+  if(v.t==='dm'&&!db.users[v.peer]){v.t='home';v.peer=null}
+  const u=U(),pend=u.inc.length,adm=isAdmin();
+  const rail=`<nav class="rail" aria-label="Servers">
+    <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>
+    <div class="sep"></div>
+    <button class="ric logo ${v.t==='server'?'on':''}" data-a="server" title="Official" aria-label="Official server">hrs</button></nav>`;
+  let side,main;
+  const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(me)}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
+  if(v.t==='server'){
+    const c=chan(v.ch),mem=Object.keys(db.users).sort();
+    side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${adm?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
+      ${db.channels.map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${x.id}"><span style="font-size:20px">#</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
+      ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
+      <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
+    main=`<div class="main"><div class="mhead"><span class="hash">#</span>${esc(c.name)}${adm?`<span class="tools"><button class="tab" data-a="chren" data-n="${c.id}">Rename</button><button class="tab" data-a="chdup" data-n="${c.id}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${c.id}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),c.a&&!adm,adm)}</div>
+      <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
+  }else{
+    side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
+      <button class="item ${v.t==='home'?'on':''}" data-a="home"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
+      <div class="cap">Direct messages</div>
+      ${u.friends.length?u.friends.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span></button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
+      </div>${meBar}</div>`;
+    if(v.t==='dm'){
+      main=`<div class="main"><div class="mhead"><span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,adm)}</div></div></div>`;
+    }else{
+      let pane='';
+      if(v.tab==='add'){
+        pane=`<h3>Add a friend</h3><p style="margin:0 0 12px;color:var(--muted)">Enter a coworker’s username, or tap their name anywhere in the chat to open their profile.</p>
+        <form class="addbox" data-a="addf"><input id="friendin" placeholder="Enter a username" autocomplete="off" aria-label="Username"><button class="btn">Send friend request</button></form>
+        ${v.note?`<div class="note ${v.note[0]}">${esc(v.note[1])}</div>`:''}`;
+      }else if(v.tab==='pending'){
+        const rows=[...u.inc.map(n=>({n,i:1})),...u.out.map(n=>({n,i:0}))];
+        pane=`<h3>Pending — ${rows.length}</h3>`+(rows.length?rows.map(r=>`<div class="row">${av(r.n,1)}<div class="nm">${esc(r.n)}<span class="sub">${r.i?'Incoming request':'Outgoing request'}</span></div>
+          ${r.i?`<button class="btn" data-a="acc" data-n="${esc(r.n)}">Accept</button>`:''}<button class="btn no" data-a="rej" data-n="${esc(r.n)}">${r.i?'Decline':'Cancel'}</button></div>`).join(''):'<div class="empty">No pending requests.</div>');
+      }else{
+        pane=`<h3>All friends — ${u.friends.length}</h3>`+(u.friends.length?u.friends.map(n=>`<div class="row">${av(n,1)}<div class="nm">${esc(n)}</div>
+          <button class="btn" data-a="dm" data-n="${esc(n)}">Message</button><button class="btn no" data-a="unf" data-n="${esc(n)}">Remove</button></div>`).join(''):'<div class="empty">No friends yet. Use Add Friend to send a request.</div>');
+      }
+      main=`<div class="main"><div class="mhead"><span style="font-size:20px">☺</span>Friends
+        <button class="tab ${v.tab==='all'?'on':''}" data-a="tab" data-n="all">All</button>
+        <button class="tab ${v.tab==='pending'?'on':''}" data-a="tab" data-n="pending">Pending${pend?' ('+pend+')':''}</button>
+        <button class="tab add ${v.tab==='add'?'on':''}" data-a="tab" data-n="add">Add Friend</button></div><div class="pane">${pane}</div></div>`;
     }
+  }
+  root.innerHTML=`<div id="app">${rail}${side}${main}</div>${modalHtml()}${ctxHtml()}`;
+  const m=document.getElementById('msgs');if(m)m.scrollTop=m.scrollHeight;
+  hydrate();
+  if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
+  else if(v.modal){const i=document.querySelector('.modal input:not([type=file]):not([type=color])');if(i)i.focus()}
+  else if(v.tab==='add'&&v.t==='home'){const f=document.getElementById('friendin');if(f)f.focus()}
+  else{const i=document.getElementById('msgin');if(i&&!i.disabled)i.focus()}
+}
 
-    // 6. Push strings into the active peer's data channel
-    function sendMessage() {
-        const text = messageInput.value.trim();
-        if (text && conn) {
-            const senderLabel = isHost ? 'Host' : 'Guest';
-            const payload = { sender: senderLabel, text: text };
-            
-            conn.send(payload);
-            appendMessage(senderLabel, text, isHost ? 'host' : 'guest');
-            messageInput.value = '';
-        }
-    }
+const cname=s=>s.trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9_-]/g,'').slice(0,24);
+function uniq(n){const b=n;let i=2;while(db.channels.some(c=>c.name===n))n=b+'-'+i++;return n}
+const notice=(title,msg)=>{v.modal={t:'alert',title,msg};render()};
+function submitChan(){
+  const m=v.modal,n=cname(document.getElementById('chn').value);
+  if(!n){document.getElementById('cerr').textContent='Use letters, numbers, dashes or underscores.';return false}
+  if(m.mode==='add'){const id=newId();db.channels.push({id,name:uniq(n)});v.ch=id;v.t='server'}
+  else{const c=chan(m.id);if(c&&n!==c.name)c.name=uniq(n)}
+  save();v.modal=null;return true;
+}
+async function dupChan(id){
+  if(!isAdmin())return;const c=chan(id);if(!c)return;const nid=newId(),msgs=[];
+  for(const m of (db.msgs['official:'+c.id]||[])){const n={...m};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b)await putBlob(n.v,b)}catch(e){}}msgs.push(n)}
+  db.channels.push({id:nid,name:uniq(c.name+'-copy'),a:c.a});db.msgs['official:'+nid]=msgs;save();v.ch=nid;v.t='server';render();
+}
+function delChan(id){
+  if(!isAdmin())return;const c=chan(id);if(!c)return;
+  v.modal=db.channels.length<2?{t:'alert',title:'Can’t remove this channel',msg:'The server needs at least one channel.'}
+    :{t:'confirm',title:'Remove #'+c.name+'?',msg:'This deletes the channel and all of its messages. It can’t be undone.',btn:'Remove channel',go:'chan',id};
+  render();
+}
+function doDelChan(id){
+  const ms=db.msgs['official:'+id]||[];
+  db.channels=db.channels.filter(x=>x.id!==id);delete db.msgs['official:'+id];if(v.ch===id)v.ch=db.channels[0].id;save();
+  ms.forEach(m=>m.v&&delBlob(m.v).catch(()=>{}));
+}
+function doDelRole(id){delete db.roles[id];Object.values(db.users).forEach(x=>{x.roles=(x.roles||[]).filter(r=>r!==id)});save()}
+function ctxHtml(){
+  const x=v.ctx;if(!x||!isAdmin()||!chan(x.id))return '';
+  const l=Math.max(4,Math.min(x.x,innerWidth-200)),t=Math.max(4,Math.min(x.y,innerHeight-150));
+  return `<div class="ctx" role="menu" style="left:${l}px;top:${t}px"><button role="menuitem" data-a="chren" data-n="${x.id}">Rename channel</button><button role="menuitem" data-a="chdup" data-n="${x.id}">Duplicate channel</button><button role="menuitem" class="danger" data-a="chdel" data-n="${x.id}">Remove channel</button></div>`;
+}
+async function sendVideo(f){
+  if(!isAdmin()||v.t==='home')return;
+  if(!f.type.startsWith('video/'))return notice('Can’t send this file','Choose a video file.');
+  if(f.size>500*1024*1024)return notice('Video is too large','Videos must be under 500 MB.');
+  const id=newId(),cap=document.getElementById('msgin');
+  try{await putBlob(id,f)}catch(e){return notice('Video not saved','The video couldn’t be saved. Storage on this device may be full.')}
+  const k=key();(db.msgs[k]=db.msgs[k]||[]).push({u:me,t:Date.now(),x:cap?cap.value.trim().slice(0,2000):'',v:id});
+  if(cap)cap.value='';save();vurl[id]=URL.createObjectURL(f);render();
+}
+async function delAccount(){
+  const n=document.getElementById('delname').value.trim().toLowerCase(),p=document.getElementById('delpw').value,er=document.getElementById('derr'),u=U();
+  let ok=false;try{ok=n===me&&p&&await hash(p,u.s)===u.h}catch(e){}
+  if(!ok){er.textContent='That username and password don’t match this account.';return}
+  const gone=[];
+  for(const k of Object.keys(db.msgs)){
+    if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me)){db.msgs[k].forEach(m=>m.v&&gone.push(m.v));delete db.msgs[k]}
+    else db.msgs[k]=db.msgs[k].filter(m=>{if(m.u===me){if(m.v)gone.push(m.v);return false}return true});
+  }
+  for(const o of Object.values(db.users))for(const f of ['friends','inc','out'])o[f]=o[f].filter(x=>x!==me);
+  delete db.users[me];save();v.modal=null;signOut();
+  gone.forEach(id=>delBlob(id).catch(()=>{}));
+}
+async function doLogin(){
+  const b=document.querySelector('[data-a=login]'),er=document.getElementById('lerr');
+  b.disabled=true;er.textContent='';
+  const msg=await signIn(document.getElementById('uname').value,document.getElementById('pw').value);
+  if(msg){er.textContent=msg;b.disabled=false}
+}
 
-    function appendMessage(sender, text, typeClass) {
+root.addEventListener('click',e=>{
+  if(v.ctx){v.ctx=null;const q=document.querySelector('.ctx');if(q)q.remove()}
+  if(e.target.classList.contains('modal')){v.modal=null;return render()}
+  const b=e.target.closest('[data-a]');if(!b||b.tagName==='FORM')return;
+  const a=b.dataset.a,n=b.dataset.n;
+  if(a==='login')return doLogin();
+  if(a==='quick'){document.getElementById('uname').value=n;document.getElementById('pw').focus();return}
+  if(a==='logout')return signOut();
+  if(a==='attach')return document.getElementById('vidin').click();
+  if(a==='pickpic')return document.getElementById('picin').click();
+  if(a==='chdup')return dupChan(n);
+  if(a==='chdel')return delChan(n);
+  if(a==='delgo')return delAccount();
+  if(a==='delmsg'){if(!isAdmin())return;const m=(db.msgs[key()]||[]).splice(+b.dataset.i,1)[0];if(m&&m.v)delBlob(m.v).catch(()=>{});save();return render()}
+  if(a==='rdel'){const id=b.dataset.r;if(!isAdmin()||id==='owner'||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
+  if(a==='home'){v.t='home';v.peer=null}
+  else if(a==='server')v.t='server';
+  else if(a==='ch')v.ch=n;
+  else if(a==='dm'){v.t='dm';v.peer=n}
+  else if(a==='tab'){v.tab=n;v.note=null}
+  else if(a==='acc'||a==='pfacc')accept(n);
+  else if(a==='rej'||a==='pfrej')drop(n);
+  else if(a==='unf'||a==='pfunf')unfriend(n);
+  else if(a==='pfadd'){addFriend(n);v.note=null}
+  else if(a==='pfmsg'){v.modal=null;v.t='dm';v.peer=n}
+  else if(a==='prof')v.modal={t:'prof',n};
+  else if(a==='mclose')v.modal=null;
+  else if(a==='del1'||a==='del2')v.modal={t:a};
+  else if(a==='roles'&&isAdmin())v.modal={t:'roles'};
+  else if(a==='rmpic'){delete U().pic;save()}
+  else if(a==='pfrole'&&isAdmin()){const t=db.users[n],r=b.dataset.r,cur=t.roles||[];t.roles=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];save()}
+  else if(a==='rnew'&&isAdmin()){const nm=document.getElementById('rname').value.trim().slice(0,24);if(!nm)return;db.roles['r'+newId()]={name:nm,color:document.getElementById('rcolor').value};save()}
+  else if(a==='chadd'&&isAdmin())v.modal={t:'chname',mode:'add'};
+  else if(a==='chren'&&isAdmin()&&chan(n))v.modal={t:'chname',mode:'ren',id:n};
+  else if(a==='chgo'&&isAdmin()){if(!submitChan())return}
+  else if(a==='cfgo'&&isAdmin()){const m=v.modal;v.modal=null;if(m.go==='chan')doDelChan(m.id);else if(m.go==='role')doDelRole(m.id)}
+  else return;
+  render();
+});
+root.addEventListener('submit',e=>{
+  e.preventDefault();const f=e.target.closest('form');if(!f)return;
+  if(f.dataset.a==='send'){const i=document.getElementById('msgin');send(i.value);i.value='';render()}
+  else if(f.dataset.a==='addf'){addFriend(document.getElementById('friendin').value);render()}
+});
+root.addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(e.target.id==='vidin'){sendVideo(f);e.target.value='';return}
+  if(e.target.id==='picin'&&f.type.startsWith('image/')){
+    const img=new Image(),url=URL.createObjectURL(f);
+    img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=128;const z=Math.min(img.width,img.height);c.getContext('2d').drawImage(img,(img.width-z)/2,(img.height-z)/2,z,z,0,0,128,128);U().pic=c.toDataURL('image/jpeg',.85);URL.revokeObjectURL(url);save();render()};
+    img.src=url;
+  }
+});
+root.addEventListener('contextmenu',e=>{
+  const b=e.target.closest('[data-a=ch]');if(!b||!isAdmin())return;
+  e.preventDefault();v.ctx={id:b.dataset.n,x:e.clientX,y:e.clientY};render();
+});
+root.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&(v.modal||v.ctx)){v.modal=null;v.ctx=null;render();return}
+  if(e.key!=='Enter'||e.shiftKey||e.isComposing)return;
+  const id=e.target.id;
+  if(id==='uname'){e.preventDefault();document.getElementById('pw').focus()}
+  else if(id==='pw'){e.preventDefault();doLogin()}
+  else if(id==='delname'){e.preventDefault();document.getElementById('delpw').focus()}
+  else if(id==='delpw'){e.preventDefault();delAccount()}
+  else if(id==='chn'){e.preventDefault();document.querySelector('[data-a=chgo]').click()}
+  else if(id==='rname'){e.preventDefault();document.querySelector('[data-a=rnew]').click()}
+  else if(id==='msgin'){e.preventDefault();send(e.target.value);e.target.value='';render()}
+  else if(id==='friendin'){e.preventDefault();addFriend(e.target.value);render()}
+});
+window.addEventListener('storage',e=>{if(e.key===K){db=load();if(me&&!db.users[me])me=null;render()}});
+render();
+</script>
+</body>
+</html>
