@@ -273,6 +273,7 @@ function push(){
   clearTimeout(pushTm);const since=NET.last;NET.last=now();
   const p=pick(since);
   if(!isEmpty(p))mqPush(p);
+  if(me)for(const k in db.msgs)if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me))for(const m of db.msgs[k])if(m.m>=since)mqPubDM(k,m);
   if(!isEmpty(p)){
     if(NET.host){for(const c of NET.clients)if(c.open)c.send({k:'hub',t:'upd',p})}
     else if(NET.hub&&NET.hub.open)NET.hub.send({k:'hub',t:'upd',p});
@@ -357,32 +358,49 @@ const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mq
 const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null};
 const b64=u=>{let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
 const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-async function mqEnc(o){
-  const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},MQ.key,new TextEncoder().encode(JSON.stringify(o))));
+async function mqEnc(o,key=MQ.key){
+  const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(o))));
   const out=new Uint8Array(12+ct.length);out.set(iv);out.set(ct,12);return b64(out);
 }
-async function mqDec(s){const u=unb64(s);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},MQ.key,u.slice(12))))}
+async function mqDec(s,key=MQ.key){const u=unb64(s);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},key,u.slice(12))))}
+MQ.dk={};
+const dmKey=async pair=>MQ.dk[pair]||(MQ.dk[pair]=crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode(COMPANY_CODE+'|dm|'+pair)),'AES-GCM',false,['encrypt','decrypt']));
 async function mqPub(sec,id,r,k){
   if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
   const topic=sec==='msg'?`${MQ.ns}/msg/${k}/${id}`:`${MQ.ns}/${sec}/${id}`,pl=await mqEnc({s:sec,id,k,r});
   MQ.seen[sec+'/'+id]=r.m;
   for(const c of MQ.cl)if(c.connected)c.publish(topic,pl,{qos:1,retain:true});
 }
+async function mqPubDM(k,m){
+  if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
+  const pair=k.slice(3),[a,b]=pair.split('|');if(!a||!b||!okId(m.id))return;
+  const pl=await mqEnc({s:'dm',id:m.id,k,r:m},await dmKey(pair));
+  MQ.seen['dm/'+m.id]=m.m;
+  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/dm/${a}/${b}/${m.id}`,pl,{qos:1,retain:true});
+}
 function mqPush(p){
   for(const s of ['users','roles','ch','fr'])for(const id in p[s])mqPub(s,id,p[s][id]);
   for(const k in p.msgs)for(const m of p.msgs[k])mqPub('msg',m.id,m,k);
 }
+function mqSubDM(c){if(me&&c.connected)c.subscribe([`${MQ.ns}/dm/${me}/+/+`,`${MQ.ns}/dm/+/${me}/+`],{qos:1})}
+const mqSubAll=()=>MQ.cl.forEach(mqSubDM);
 function mqSync(){const p=pick(0);const keep=(sec,id,r)=>!(MQ.seen[sec+'/'+id]>=r.m);
   const q={msgs:{}};for(const s of ['users','roles','ch','fr']){q[s]={};for(const id in p[s])if(keep(s,id,p[s][id]))q[s][id]=p[s][id]}
   for(const k in p.msgs){const l=p.msgs[k].filter(m=>keep('msg',m.id,m));if(l.length)q.msgs[k]=l}
-  if(!isEmpty(q))mqPush(q)}
-function mqIn(o){
+  if(!isEmpty(q))mqPush(q);
+  if(me)for(const k in db.msgs)if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me))for(const m of db.msgs[k])if(keep('dm',m.id,m))mqPubDM(k,m)}
+function mqIn(o,pair){
   if(!o||typeof o!=='object'||!o.r||!okId(o.id))return;
-  MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},msgs:{}};
-  if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
-  else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
+  if(o.s==='dm'){
+    if(!pair||o.k!=='dm:'+pair)return;
+    MQ.dbuf=MQ.dbuf||{};(MQ.dbuf[o.k]=MQ.dbuf[o.k]||[]).push(o.r);
+  }else{
+    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},msgs:{}};
+    if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
+    else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
+  }
   MQ.seen[o.s+'/'+o.id]=Math.max(MQ.seen[o.s+'/'+o.id]||0,o.r.m||0);
-  clearTimeout(MQ.ft);MQ.ft=setTimeout(()=>{const b=MQ.buf;MQ.buf=null;if(b)mergeIn(b)},300);
+  clearTimeout(MQ.ft);MQ.ft=setTimeout(()=>{const b=MQ.buf,d=MQ.dbuf;MQ.buf=MQ.dbuf=null;if(b)mergeIn(b);if(d)for(const k in d)mergeIn({msgs:{[k]:d[k]}},k)},300);
 }
 async function mqInit(){
   if(!window.mqtt||!window.crypto||!crypto.subtle)return;
@@ -391,8 +409,12 @@ async function mqInit(){
   MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
   for(const url of BROKERS){
     const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
-    c.on('connect',()=>{c.subscribe(MQ.ns+'/#',{qos:1});status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();status()},2500)});
-    c.on('message',async(t,buf)=>{try{mqIn(await mqDec(new TextDecoder().decode(buf)))}catch(e){}});
+    c.on('connect',()=>{c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#'),{qos:1});mqSubDM(c);status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();status()},2500)});
+    c.on('message',async(t,buf)=>{try{
+      const txt=new TextDecoder().decode(buf),p=t.split('/');
+      if(p[2]==='dm'){if(!me||!p[3]||!p[4]||(p[3]!==me&&p[4]!==me))return;const pair=[p[3],p[4]].sort().join('|');mqIn(await mqDec(txt,await dmKey(pair)),pair)}
+      else mqIn(await mqDec(txt));
+    }catch(e){}});
     c.on('close',status);c.on('error',()=>{});
     MQ.cl.push(c);
   }
@@ -413,7 +435,7 @@ async function signIn(name,pw){
   }
   me=name;SINCE=now();try{localStorage.setItem('hrs_me',me)}catch(e){}
   v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
-  startSelf();render();return '';
+  startSelf();mqSubAll();setTimeout(mqSync,2500);render();return '';
 }
 function addFriend(raw){
   const n=raw.trim().toLowerCase().replace(/^@/,'');
