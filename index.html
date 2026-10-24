@@ -25,13 +25,13 @@
 <div id="chat-container">
     <div id="setup-panel">
         <div id="host-section">
-            <strong>Your ID:</strong> <span id="my-id">Loading...</span> (Share this with your friend)
+            <strong>Your ID:</strong> <span id="my-id" style="color: #ffeb3b; font-weight: bold;">Connecting to broker server...</span>
         </div>
         <div id="guest-section" style="margin-top: 8px;">
             <input type="text" id="peer-id-input" placeholder="Paste Friend's ID here..." style="padding: 4px; width: 200px;">
             <button id="connect-btn" style="padding: 4px 8px;">Connect</button>
         </div>
-        <div id="status" style="margin-top: 8px; color: #ffeb3b; font-weight: bold;">Status: Disconnected</div>
+        <div id="status" style="margin-top: 8px; color: #b2dfdb; font-size: 12px;">Status: Initialising network pipeline...</div>
     </div>
     
     <div id="messages" style="display: flex; flex-direction: column;"></div>
@@ -42,10 +42,14 @@
     </div>
 </div>
 
-<!-- Embedded logic handles peer-to-peer data pipeline -->
 <script>
-    // Initialize PeerJS (Data passes directly device-to-device)
-    const peer = new Peer();
+    // Explicitly configure PeerJS cloud variables to bypass HTTPS blockages
+    const peer = new Peer(undefined, {
+        host: '0.peerjs.com',
+        port: 443,
+        secure: true,
+        path: '/'
+    });
 
     let conn = null;
     let isHost = true;
@@ -58,58 +62,67 @@
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
 
-    // 1. Display your unique ID once connected to the server
+    // 1. Success Listener: Cloud broker generates your identity
     peer.on('open', (id) => {
+        myIdDisplay.style.color = '#fff';
         myIdDisplay.textContent = id;
-        statusDisplay.textContent = "Status: Waiting for someone to connect...";
+        statusDisplay.textContent = "Status: Online. Ready for direct incoming peer connections.";
     });
 
-    // 2. HOST MODE: Someone connects to you using your ID
+    // 2. Error Diagnostic Listener: Detects why it failed
+    peer.on('error', (err) => {
+        console.error("PeerJS Core Error:", err);
+        myIdDisplay.style.color = '#ff8a80';
+        myIdDisplay.textContent = "Connection Failure";
+        statusDisplay.innerHTML = `<span style="color: #ff8a80;">Error [${err.type}]: ${err.message}</span>`;
+    });
+
+    // 3. HOST MODE: A remote peer pipes down your handshake connection
     peer.on('connection', (connection) => {
         conn = connection;
         isHost = true;
         setupChatSystem();
     });
 
-    // 3. GUEST MODE: You actively connect to someone else's ID
+    // 4. GUEST MODE: Actively target and bind to a remote peer's ID
     connectBtn.addEventListener('click', () => {
         const targetId = peerIdInput.value.trim();
         if (targetId) {
+            statusDisplay.textContent = "Status: Directing handshake request to target peer hardware...";
             conn = peer.connect(targetId);
             isHost = false;
             setupChatSystem();
         }
     });
 
-    // 4. Wire up the data channels once connected
+    // 5. Establish real-time data frame listener bindings
     function setupChatSystem() {
-        statusDisplay.textContent = `Status: Connected as ${isHost ? 'Host' : 'Guest'}`;
-        messageInput.disabled = false;
-        sendBtn.disabled = false;
+        conn.on('open', () => {
+            statusDisplay.textContent = `Status: Direct network link verified. Connected as ${isHost ? 'Host' : 'Guest'}.`;
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+        });
 
-        // Listen for incoming data packets directly from the other device
+        // Pull message frames directly out of your network interface card (RAM-to-RAM)
         conn.on('data', (data) => {
             appendMessage(data.sender, data.text, data.sender === 'Host' ? 'host' : 'guest');
         });
 
         conn.on('close', () => {
-            statusDisplay.textContent = "Status: Friend disconnected.";
+            statusDisplay.textContent = "Status: Direct network socket closed. Peer disconnected.";
             messageInput.disabled = true;
             sendBtn.disabled = true;
         });
     }
 
-    // 5. Send a message packet over the direct network pipeline
+    // 6. Push strings into the active peer's data channel
     function sendMessage() {
         const text = messageInput.value.trim();
         if (text && conn) {
             const senderLabel = isHost ? 'Host' : 'Guest';
             const payload = { sender: senderLabel, text: text };
             
-            // Send directly to peer's hardware memory pipeline
             conn.send(payload);
-            
-            // Show it on your own screen
             appendMessage(senderLabel, text, isHost ? 'host' : 'guest');
             messageInput.value = '';
         }
@@ -123,7 +136,6 @@
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Event Listeners for UI
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
