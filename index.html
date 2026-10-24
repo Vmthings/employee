@@ -151,6 +151,8 @@ input{font-size:16px}
 .row{flex-wrap:wrap}
 }
 @media(prefers-reduced-motion:reduce){.nav{transition:none}}
+.mbox .sub{display:block;font-size:12px;color:var(--muted);margin:6px 0}
+.rr{border-top:1px solid #3f4147;padding:10px 0}
 </style>
 </head>
 <body>
@@ -191,7 +193,13 @@ const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-function rolesOf(n){const u=getU(n)||{},r=[];if(n===ADMIN)r.push(OWNER);(Array.isArray(u.roles)?u.roles:[]).forEach(id=>{const x=db.roles[id];if(x&&!x.del)r.push(x)});if(!r.length&&db.roles.employee&&!db.roles.employee.del)r.push(db.roles.employee);return r}
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles']];
+function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
+function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
+const can=(p,n=me)=>n===ADMIN||roleIds(n).some(id=>db.roles[id].p&&db.roles[id].p[p]===true);
+const inList=(l,n)=>Array.isArray(l)&&l.length&&roleIds(n).some(id=>l.includes(id));
+const canSee=(c,n=me)=>n===ADMIN||!Array.isArray(c.vis)||!c.vis.length||inList(c.vis,n);
+const canPost=(c,n=me)=>canSee(c,n)&&(!c.a||can('announce',n))&&(n===ADMIN||!Array.isArray(c.post)||!c.post.length||inList(c.post,n));
 const rc=n=>{const r=rolesOf(n)[0];return r?col(r.color):'#fff'};
 const chans=()=>Object.keys(db.ch).filter(id=>!db.ch[id].del).map(id=>({...db.ch[id],id})).sort((a,b)=>a.o-b.o);
 const chan=id=>{const c=db.ch[id];return c&&!c.del?{...c,id}:null};
@@ -418,7 +426,7 @@ function accept(n){const f=db.fr[fk(me,n)];if(!f)return;f.st='ok';f.keep=Math.ra
 function dropEdge(n){const f=db.fr[fk(me,n)];if(!f)return;f.del=1;f.m=now();changed()}
 function send(text){
   text=text.trim();if(!text||v.t==='home')return;
-  if(v.t==='server'){const c=chan(v.ch);if(!c||(c.a&&!isAdmin()))return}
+  if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c))return}
   const k=key();(db.msgs[k]=db.msgs[k]||[]).push({id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)});changed();
 }
 function fmt(ts){
@@ -430,11 +438,11 @@ function fmt(ts){
 function msgsHtml(){
   const list=msgsOf(key()),srv=v.t==='server',c=srv&&chan(v.ch);let prev=null,out='';
   const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer;
-  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only the owner can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p></div>`;
+  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p></div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
     const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
-    const del=isAdmin()?`<button class="del" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:'';
+    const del=can('delmsg')?`<button class="del" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:'';
     out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
       :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
     prev=m;
@@ -453,7 +461,7 @@ function hydrate(){document.querySelectorAll('video[data-vid]').forEach(async el
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
 })}
 function composer(ph,lock,att){
-  return `<form class="composer" data-a="send"><div class="cbox">${lock?'<input id="msgin" disabled placeholder="Only the owner can post in this channel" aria-label="Message">'
+  return `<form class="composer" data-a="send"><div class="cbox">${lock?'<input id="msgin" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message">'
   :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<input id="msgin" placeholder="${ph}" autocomplete="off" maxlength="2000" aria-label="Message">`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
 }
 function modalHtml(){
@@ -467,18 +475,22 @@ function modalHtml(){
     else if(outOf(me).includes(n))act=`<button class="btn sec" data-a="pfrej" data-n="${N}">Cancel request</button>`;
     else act=`<button class="btn" data-a="pfadd" data-n="${N}">Add friend</button>`;
     const have=Array.isArray(t.roles)?t.roles:[];
-    const rl=isAdmin()?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
+    const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
     c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${N}</div><div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
   }else if(m.t==='del1'){
     c=`<h2>Delete your account?</h2><p class="mp">Your profile, friendships and your messages on the Official server are deleted. Direct messages already saved on a friend’s device may stay there. This can’t be undone.</p><div class="acts"><button class="btn sec" data-a="mclose">Keep my account</button><button class="btn no" data-a="del2">Continue</button></div>`;
   }else if(m.t==='del2'){
     c=`<h2>Confirm it’s you</h2><p class="mp">Enter your username and password to delete your account permanently.</p><input id="delname" placeholder="Username" autocomplete="off" aria-label="Username"><input id="delpw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><div id="derr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="delgo">Delete account</button></div>`;
   }else if(m.t==='roles'){
-    c=`<h2>Roles</h2><div class="row"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">Built in</span></div>${roleList().map(r=>`<div class="row"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div>`).join('')}
+    c=`<h2>Roles &amp; permissions</h2><div class="row" style="border-top:0"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">All permissions</span></div>${roleList().map(r=>`<div class="rr"><div class="row" style="border-top:0;padding:0 0 6px"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div><div class="chips">${PERMS.map(([k,l])=>`<button class="chip ${r.p&&r.p[k]===true?'on':''}" style="--c:${col(r.color)}" data-a="rperm" data-r="${esc(r.id)}" data-p="${k}">${l}</button>`).join('')}</div></div>`).join('')}
     <div class="cap">Create a role</div><div class="addbox"><input id="rname" placeholder="Role name" maxlength="24" aria-label="Role name"><input id="rcolor" type="color" value="#3ba55d" aria-label="Role color"><button class="btn" data-a="rnew">Create</button></div><div class="acts"><button class="btn sec" data-a="mclose">Done</button></div>`;
   }else if(m.t==='chname'){
-    const add=m.mode==='add',cur=add?'':(chan(m.id)||{}).name||'';
-    c=`<h2>${add?'Create channel':'Rename channel'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
+    const add=m.mode==='add',ch=add?{}:(chan(m.id)||{}),cur=ch.name||'',id=esc(m.id||'');
+    const chips=(f,key)=>roleList().map(r=>`<button class="chip ${Array.isArray(ch[key])&&ch[key].includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="${f}" data-n="${id}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet.</span>';
+    const extra=add?'':`<div class="cap">Channel type</div><div class="chips"><button class="chip ${ch.a?'on':''}" style="--c:#f0b232" data-a="chann" data-n="${id}">Announcement-only</button></div><span class="sub">Only the Owner and roles with “Post announcements” can post.</span>
+    <div class="cap">Who can see this channel</div><div class="chips">${chips('chvis','vis')}</div><span class="sub">${Array.isArray(ch.vis)&&ch.vis.length?'Private: only these roles (and the Owner) can see it.':'No roles selected: everyone can see it.'}</span>
+    <div class="cap">Who can post</div><div class="chips">${chips('chpost','post')}</div><span class="sub">${Array.isArray(ch.post)&&ch.post.length?'Only these roles (and the Owner) can post.':'No roles selected: everyone who can see it can post.'}</span>`;
+    c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -487,9 +499,9 @@ function modalHtml(){
   return `<div class="modal"><div class="mbox" role="dialog" aria-modal="true">${c}<button class="x" data-a="mclose" aria-label="Close">✕</button></div></div>`;
 }
 function ctxHtml(){
-  const x=v.ctx;if(!x||!isAdmin()||!chan(x.id))return '';
+  const x=v.ctx;if(!x||!can('chan')||!chan(x.id))return '';
   const l=Math.max(4,Math.min(x.x,innerWidth-200)),t=Math.max(4,Math.min(x.y,innerHeight-150)),id=esc(x.id);
-  return `<div class="ctx" role="menu" style="left:${l}px;top:${t}px"><button role="menuitem" data-a="chren" data-n="${id}">Rename channel</button><button role="menuitem" data-a="chdup" data-n="${id}">Duplicate channel</button><button role="menuitem" class="danger" data-a="chdel" data-n="${id}">Remove channel</button></div>`;
+  return `<div class="ctx" role="menu" style="left:${l}px;top:${t}px"><button role="menuitem" data-a="chren" data-n="${id}">Channel settings</button><button role="menuitem" data-a="chdup" data-n="${id}">Duplicate channel</button><button role="menuitem" class="danger" data-a="chdel" data-n="${id}">Remove channel</button></div>`;
 }
 
 function render(){
@@ -504,9 +516,9 @@ function render(){
     if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
     status();return;
   }
-  if(v.t==='server'&&!chan(v.ch))v.ch=chans()[0].id;
+  if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
   if(v.t==='dm'&&!getU(v.peer)){v.t='home';v.peer=null}
-  const fr=friendsOf(me),inc=incOf(me),out=outOf(me),pend=inc.length,adm=isAdmin();
+  const fr=friendsOf(me),inc=incOf(me),out=outOf(me),pend=inc.length,adm=isAdmin(),mc=can('chan');
   const rail=`<nav class="rail" aria-label="Servers">
     <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>
     <div class="sep"></div>
@@ -514,12 +526,12 @@ function render(){
   let side,main;
   const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(me)}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
   if(v.t==='server'){
-    const c=chan(v.ch),mem=users();
-    side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${adm?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
-      ${chans().map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">#</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
+    const c=v.ch?chan(v.ch):null,mem=users();
+    side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
+      ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${adm?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Rename</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),c.a&&!adm,adm)}</div>
+    main=!c?`<div class="main"><div class="mhead">${BURGER}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'))}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
@@ -571,12 +583,12 @@ function submitChan(){
 }
 async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NET.hub.send({k:'hub',t:'putv',id,ty:b.type,buf:await b.arrayBuffer()})}
 async function dupChan(id){
-  if(!isAdmin())return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
+  if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
   for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b)}}catch(e){}}L.push(n)}
-  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
+  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vis:c.vis,post:c.post,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
-  if(!isAdmin())return;const c=chan(id);if(!c)return;
+  if(!can('chan'))return;const c=chan(id);if(!c)return;
   v.modal=chans().length<2?{t:'alert',title:'Can’t remove this channel',msg:'The server needs at least one channel.'}
     :{t:'confirm',title:'Remove #'+c.name+'?',msg:'This deletes the channel and all of its messages. It can’t be undone.',btn:'Remove channel',go:'chan',id};
   render();
@@ -587,7 +599,7 @@ function doDelChan(id){
 }
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;r.m=now();changed()}}
 async function sendVideo(f){
-  if(!isAdmin()||v.t!=='server')return;
+  if(!can('video')||v.t!=='server')return;
   if(!f.type.startsWith('video/'))return notice('Can’t send this file','Choose a video file.');
   if(f.size>50*1024*1024)return notice('Video is too large','Videos are shared directly between devices, so they must be under 50 MB.');
   const id=newId(),cap=document.getElementById('msgin');
@@ -617,7 +629,9 @@ async function doLogin(){
 
 /* ---------- events ---------- */
 let lp,lpFired=false;
+const mcan=()=>can('chan');
 root.addEventListener('click',e=>{
+  {const ci=document.getElementById('chn');if(ci&&v.modal&&v.modal.t==='chname')v.modal.draft=ci.value}
   if(lpFired){lpFired=false;return}
   if(v.ctx){v.ctx=null;const q=document.querySelector('.ctx');if(q)q.remove()}
   if(e.target.classList.contains('modal')){v.modal=null;return render()}
@@ -630,7 +644,7 @@ root.addEventListener('click',e=>{
   if(a==='chdup')return dupChan(n);
   if(a==='chdel')return delChan(n);
   if(a==='delgo')return delAccount();
-  if(a==='delmsg'){if(!isAdmin())return;const m=(db.msgs[key()]||[]).find(x=>x.id===b.dataset.id);if(m){if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed()}return render()}
+  if(a==='delmsg'){if(!can('delmsg'))return;const m=(db.msgs[key()]||[]).find(x=>x.id===b.dataset.id);if(m){if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed()}return render()}
   if(a==='rdel'){const id=b.dataset.r;if(!isAdmin()||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
   if(a==='home'){v.t='home';v.peer=null}
   else if(a==='server')v.t='server';
@@ -649,12 +663,15 @@ root.addEventListener('click',e=>{
   else if(a==='del1'||a==='del2')v.modal={t:a};
   else if(a==='roles'&&isAdmin())v.modal={t:'roles'};
   else if(a==='rmpic'){delete U().pic;U().m=now();changed()}
-  else if(a==='pfrole'&&isAdmin()){const t=db.users[n],r=b.dataset.r,cur=Array.isArray(t.roles)?t.roles:[];t.roles=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];t.m=now();changed()}
+  else if(a==='pfrole'&&can('assign')){const t=db.users[n],r=b.dataset.r,cur=Array.isArray(t.roles)?t.roles:[];t.roles=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];t.m=now();changed()}
   else if(a==='rnew'&&isAdmin()){const nm=document.getElementById('rname').value.trim().slice(0,24);if(!nm)return;const id='r'+newId();db.roles[id]={id,name:nm,color:document.getElementById('rcolor').value,m:now()};changed()}
-  else if(a==='chadd'&&isAdmin())v.modal={t:'chname',mode:'add'};
-  else if(a==='chren'&&isAdmin()&&chan(n))v.modal={t:'chname',mode:'ren',id:n};
-  else if(a==='chgo'&&isAdmin()){if(!submitChan())return}
-  else if(a==='cfgo'&&isAdmin()){const m=v.modal;v.modal=null;if(m.go==='chan')doDelChan(m.id);else if(m.go==='role')doDelRole(m.id)}
+  else if(a==='chadd'&&mcan())v.modal={t:'chname',mode:'add'};
+  else if(a==='chren'&&mcan()&&chan(n))v.modal={t:'chname',mode:'ren',id:n};
+  else if(a==='chann'&&mcan()&&db.ch[n]){const c=db.ch[n];if(c.a)delete c.a;else c.a=1;c.m=now();changed()}
+  else if((a==='chvis'||a==='chpost')&&mcan()&&db.ch[n]){const c=db.ch[n],f=a==='chvis'?'vis':'post',r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];c.m=now();changed()}
+  else if(a==='rperm'&&isAdmin()){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];r.m=now();changed()}}
+  else if(a==='chgo'&&mcan()){if(!submitChan())return}
+  else if(a==='cfgo'&&(mcan()||isAdmin())){const m=v.modal;v.modal=null;if(m.go==='chan')doDelChan(m.id);else if(m.go==='role')doDelRole(m.id)}
   else return;
   render();
 });
@@ -673,13 +690,13 @@ root.addEventListener('change',e=>{
   }
 });
 root.addEventListener('touchstart',e=>{
-  const b=e.target.closest('[data-a=ch]');if(!b||!isAdmin())return;
+  const b=e.target.closest('[data-a=ch]');if(!b||!can('chan'))return;
   const t=e.touches[0];lpFired=false;
   lp=setTimeout(()=>{lpFired=true;v.ctx={id:b.dataset.n,x:t.clientX,y:t.clientY};render()},550);
 },{passive:true});
 ['touchend','touchmove','touchcancel'].forEach(ev=>root.addEventListener(ev,()=>clearTimeout(lp),{passive:true}));
 root.addEventListener('contextmenu',e=>{
-  const b=e.target.closest('[data-a=ch]');if(!b||!isAdmin())return;
+  const b=e.target.closest('[data-a=ch]');if(!b||!can('chan'))return;
   e.preventDefault();v.ctx={id:b.dataset.n,x:e.clientX,y:e.clientY};render();
 });
 root.addEventListener('keydown',e=>{
