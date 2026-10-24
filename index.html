@@ -98,8 +98,9 @@ html,body,#root{width:100%;height:100%;overflow:hidden}
 .tap{cursor:pointer}.who.tap:hover{text-decoration:underline}
 .av.big{width:80px;height:80px;font-size:34px}
 .vid{display:block;max-width:min(420px,100%);max-height:320px;border-radius:8px;margin-top:4px;background:#000}
-.del{position:absolute;right:16px;top:-10px;display:none;background:var(--side);border:1px solid var(--dark);border-radius:4px;padding:2px 10px;font-size:13px;color:#f87075}
-.msg:hover .del,.del:focus-visible{display:block}
+.del{position:absolute;right:16px;top:-12px;display:none;gap:2px;background:var(--side);border:1px solid var(--dark);border-radius:4px;padding:2px;font-size:13px}
+.del button{padding:2px 8px;border-radius:3px;color:var(--text)}.del button:hover{background:var(--hover)}.del button.d{color:#f87075}
+.msg:hover .del,.msg:focus-within .del{display:flex}
 .cbox{display:flex;align-items:center;background:#383a40;border-radius:8px}
 .cbox input{background:none;flex:1;width:auto;min-width:0}
 .clip{width:44px;height:44px;font-size:24px;color:var(--muted);flex:none}.clip:hover{color:#fff}
@@ -135,7 +136,7 @@ html,body,#root{width:100%;height:100%;overflow:hidden}
 .burger,.scrim{display:none}
 .mhead{overflow-x:auto;white-space:nowrap;scrollbar-width:none}
 .composer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
-@media(hover:none){.del{display:block;position:static;margin-left:auto;align-self:flex-start;flex:none}.msg .gut{display:none}}
+@media(hover:none){.del{display:flex;position:static;margin-left:auto;align-self:flex-start;flex:none}.msg .gut{display:none}}
 @media(max-width:760px){
 .nav{position:fixed;inset:0 auto 0 0;z-index:8;width:min(88vw,340px);transform:translateX(-100%);transition:transform .2s}
 .nav.open{transform:none;box-shadow:0 0 24px rgba(0,0,0,.5)}
@@ -218,7 +219,7 @@ const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="
 const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
 const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del);
 const BURGER='<button class="burger" data-a="nav" aria-label="Open menu">☰</button>';
-const tomb=m=>{m.del=1;m.m=now();m.x='';delete m.v;delete m.vt};
+const tomb=m=>{m.del=1;m.m=now();m.x='';delete m.v;delete m.vt;delete m.ed};
 
 /* ---------- video storage (IndexedDB) ---------- */
 let _idb;const idb=()=>_idb||(_idb=new Promise((res,rej)=>{const r=indexedDB.open('hrs_media',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
@@ -295,8 +296,9 @@ function mergeIn(p,dmKey){
     for(const b of mk[k]){
       if(!b||!okId(b.id)||typeof b.u!=='string'||!Number.isFinite(b.t)||!Number.isFinite(b.m))continue;
       const a=idx.get(b.id);
-      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.del)n.del=1;L.push(n);idx.set(n.id,n);add=ch=true}
-      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;ch=true}
+      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);add=ch=true}
+      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;ch=true}
+      else if(!a.del&&!b.del&&b.m>a.m&&b.u===a.u&&typeof b.x==='string'){a.x=b.x.slice(0,2000);a.m=b.m;a.ed=Number.isFinite(b.ed)?b.ed:b.m;ch=true}
     }
     if(add)L.sort((x,y)=>x.t-y.t);
   }
@@ -479,8 +481,8 @@ function msgsHtml(){
   out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
-    const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
-    const del=can('delmsg')?`<button class="del" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:'';
+    const body=`<div class="tx">${m.x?esc(m.x):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const tl=(m.u===me?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
     out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
       :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
     prev=m;
@@ -532,6 +534,9 @@ function modalHtml(){
     <div class="cap">Exempt from slowmode here</div><div class="chips">${chips('chslowx','slowx')}</div>
     <div class="cap">Can’t view history here</div><div class="chips">${chips('chnohist','nohist')}</div><span class="sub">These roles only see messages sent after they open the app.</span>`;
     c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
+  }else if(m.t==='medit'){
+    const x=(db.msgs[m.k]||[]).find(q=>q.id===m.id);
+    c=`<h2>Edit message</h2><input id="medit" value="${esc(m.draft??(x?x.x:''))}" maxlength="2000" autocomplete="off" aria-label="Message text"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="mesave">Save</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -638,6 +643,7 @@ function doDelChan(id){
   (db.msgs['official:'+id]||[]).forEach(m=>{if(m.v)delBlob(m.v).catch(()=>{});tomb(m)});
   db.ch[id].del=1;db.ch[id].m=now();if(v.ch===id)v.ch=chans()[0].id;changed();
 }
+function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed()}
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;r.m=now();changed()}}
 async function sendVideo(f){
   if(!can('video')||v.t!=='server')return;
@@ -685,7 +691,12 @@ root.addEventListener('click',e=>{
   if(a==='chdup')return dupChan(n);
   if(a==='chdel')return delChan(n);
   if(a==='delgo')return delAccount();
-  if(a==='delmsg'){if(!can('delmsg'))return;const m=(db.msgs[key()]||[]).find(x=>x.id===b.dataset.id);if(m){if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed()}return render()}
+  if(a==='delmsg'||a==='medit'){
+    const k=key(),m=(db.msgs[k]||[]).find(x=>x.id===b.dataset.id);if(!m||m.del)return;
+    if(a==='medit'){if(m.u!==me)return;v.modal={t:'medit',k,id:m.id}}
+    else{if(m.u!==me&&!(v.t==='server'&&can('delmsg')))return;v.modal={t:'confirm',title:'Delete this message?',msg:'This can’t be undone.',btn:'Delete message',go:'msg',k,id:m.id}}
+    return render();
+  }
   if(a==='rdel'){const id=b.dataset.r;if(!isAdmin()||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
   if(a==='home'){v.t='home';v.peer=null}
   else if(a==='server')v.t='server';
@@ -713,7 +724,13 @@ root.addEventListener('click',e=>{
   else if(['chvis','chpost','chslowx','chnohist'].includes(a)&&mcan()&&db.ch[n]){const c=db.ch[n],f=({chvis:'vis',chpost:'post',chslowx:'slowx',chnohist:'nohist'})[a],r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];c.m=now();changed()}
   else if(a==='rperm'&&isAdmin()){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];r.m=now();changed()}}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
-  else if(a==='cfgo'&&(mcan()||isAdmin())){const m=v.modal;v.modal=null;if(m.go==='chan')doDelChan(m.id);else if(m.go==='role')doDelRole(m.id)}
+  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isAdmin())doDelRole(m.id)}
+  else if(a==='mesave'){
+    const m0=v.modal,m=(db.msgs[m0.k]||[]).find(x=>x.id===m0.id),t=document.getElementById('medit').value.trim().slice(0,2000);
+    if(!m||m.del||m.u!==me)v.modal=null;
+    else if(!t&&!m.v){document.getElementById('cerr').textContent='A message can’t be empty. Delete it instead.';return}
+    else{if(t!==m.x){m.x=t;m.ed=now();m.m=now();changed()}v.modal=null}
+  }
   else return;
   render();
 });
@@ -749,6 +766,7 @@ root.addEventListener('keydown',e=>{
   else if(id==='pw'){e.preventDefault();doLogin()}
   else if(id==='delname'){e.preventDefault();document.getElementById('delpw').focus()}
   else if(id==='delpw'){e.preventDefault();delAccount()}
+  else if(id==='medit'){e.preventDefault();document.querySelector('[data-a=mesave]').click()}
   else if(id==='chn'){e.preventDefault();document.querySelector('[data-a=chgo]').click()}
   else if(id==='rname'){e.preventDefault();document.querySelector('[data-a=rnew]').click()}
   else if(id==='msgin'){e.preventDefault();if(send(e.target.value))e.target.value='';render()}
