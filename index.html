@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>hrs chat</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='white'/%3E%3Ctext x='16' y='21' font-size='13' font-weight='700' text-anchor='middle' font-family='Montserrat,sans-serif'%3Ehrs%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -131,14 +131,36 @@ html,body,#root{width:100%;height:100%;overflow:hidden}
 .nst[data-s=host]::before,.nst[data-s=online]::before{background:var(--green)}
 .nst[data-s=connecting]::before{background:#f0b232}
 .rail .nst{margin-top:auto;padding:0 4px}.rail .nst::before{display:block;margin:0 auto 3px}
-@media(max-width:820px){.members{display:none}.side{width:200px}}
-@media(max-width:560px){.rail{width:60px}.side{width:150px}.pane{padding:12px}}
+.nav{display:flex;flex:none}
+.burger,.scrim{display:none}
+.mhead{overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.composer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+@media(hover:none){.del{display:block;position:static;margin-left:auto;align-self:flex-start;flex:none}.msg .gut{display:none}}
+@media(max-width:760px){
+.nav{position:fixed;inset:0 auto 0 0;z-index:8;width:min(88vw,340px);transform:translateX(-100%);transition:transform .2s}
+.nav.open{transform:none;box-shadow:0 0 24px rgba(0,0,0,.5)}
+.nav .side{flex:1;width:auto;min-width:0}
+.nav.open+.scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:7}
+.burger{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin-left:-8px;font-size:22px;color:var(--muted);flex:none;border-radius:4px}
+.members{display:none}
+.pane{padding:12px}
+.msg{padding-left:12px;padding-right:12px}
+.mhead{padding:0 12px}
+input{font-size:16px}
+.btn{padding:10px 14px}
+.row{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.nav{transition:none}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
+/* Company code: encrypts everything stored on the shared relay and picks its private folder.
+   Change it to your own secret BEFORE sharing the site, and never change it afterwards (that starts a new empty chat). */
+const COMPANY_CODE='H4CK13B3RRY';
 const K='hrs_chat_v2',root=document.getElementById('root'),now=()=>Date.now();
 let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
 try{me=localStorage.getItem('hrs_me')}catch(e){}
@@ -183,6 +205,7 @@ const av=(n,c,big)=>{const p=safePic((db.users[n]||{}).pic);return `<div class="
 const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(n)}</span>`;
 const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
 const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del);
+const BURGER='<button class="burger" data-a="nav" aria-label="Open menu">☰</button>';
 const tomb=m=>{m.del=1;m.m=now();m.x='';delete m.v;delete m.vt};
 
 /* ---------- video storage (IndexedDB) ---------- */
@@ -195,9 +218,11 @@ const vurl={};let asked={},missing={};
 const HUB='hrs2-hub-v1',NET={st:'connecting',host:false,hub:null,hp:null,np:null,sp:null,spErr:false,clients:new Set(),last:0};
 const dmc={};let joinT,pushTm,rT;
 function status(){
-  const t={connecting:'Connecting',host:'Host'+(NET.clients.size?' · '+NET.clients.size:''),online:'Live',offline:'Offline'}[NET.st];
-  const tip={connecting:'Looking for the chat host…',host:'This device is the randomly chosen host for the Official server',online:'Connected to the Official server host',offline:'No connection. Changes sync when you’re back online.'}[NET.st]+(NET.spErr?' Direct messages are paused because this account is open on another device.':'');
-  document.querySelectorAll('.nst').forEach(e=>{e.dataset.s=NET.st;e.textContent=t;e.title=tip});
+  const relay=typeof MQ!=='undefined'&&MQ.cl.some(c=>c.connected),st=NET.st!=='host'&&relay?'online':NET.st;
+  const t={connecting:'Connecting',host:'Host'+(NET.clients.size?' · '+NET.clients.size:''),online:'Live',offline:'Offline'}[st];
+  const tip={connecting:'Connecting to the chat network…',host:'This device is the randomly chosen host for the Official server',online:'Connected. Messages and accounts are shared across all devices.',offline:'No connection. Changes sync when you’re back online.'}[st]+(NET.spErr?' Direct messages are paused because this account is open on too many devices.':'');
+  document.querySelectorAll('.nst').forEach(e=>{e.dataset.s=st;e.textContent=t;e.title=tip});
+  const h=document.getElementById('lhint');if(h)h.textContent=st==='offline'?'Can’t reach the chat network from here. You can still sign in on this device, and everything syncs once a connection is available.':'';
 }
 const renderSoon=()=>{clearTimeout(rT);rT=setTimeout(render,60)};
 function join(){clearTimeout(joinT);NET.host=false;if(NET.st!=='offline')NET.st='connecting';status();joinT=setTimeout(claim,300+Math.random()*1500)}
@@ -205,7 +230,8 @@ function claim(){
   if(!window.Peer){NET.st='offline';status();return}
   if(NET.hp){try{NET.hp.destroy()}catch(e){}NET.hp=null}
   const p=new Peer(HUB);
-  p.on('open',()=>{NET.hp=p;NET.host=true;NET.hub=null;NET.st='host';status();renderSoon()});
+  const to=setTimeout(()=>{if(NET.hp!==p){try{p.destroy()}catch(e){}joinT=setTimeout(join,3000)}},10000);
+  p.on('open',()=>{clearTimeout(to);NET.hp=p;NET.host=true;NET.hub=null;NET.st='host';status();renderSoon()});
   p.on('connection',c=>{c.on('open',()=>{NET.clients.add(c);status()});c.on('data',d=>onHub(c,d));const x=()=>{NET.clients.delete(c);status()};c.on('close',x);c.on('error',x)});
   p.on('error',e=>{try{p.destroy()}catch(x){}if(NET.hp===p)NET.hp=null;NET.host=false;if(e.type==='unavailable-id')connectHub();else{NET.st='offline';status();joinT=setTimeout(join,8000)}});
   p.on('disconnected',()=>{if(NET.host&&NET.hp===p)try{p.reconnect()}catch(e){}});
@@ -234,11 +260,12 @@ function changed(){save();clearTimeout(pushTm);pushTm=setTimeout(push,120)}
 function push(){
   clearTimeout(pushTm);const since=NET.last;NET.last=now();
   const p=pick(since);
+  if(!isEmpty(p))mqPush(p);
   if(!isEmpty(p)){
     if(NET.host){for(const c of NET.clients)if(c.open)c.send({k:'hub',t:'upd',p})}
     else if(NET.hub&&NET.hub.open)NET.hub.send({k:'hub',t:'upd',p});
   }
-  for(const k in db.msgs)if(k.startsWith('dm:')){const l=db.msgs[k].filter(m=>m.m>=since),c=dmc[k];if(l.length&&c&&c.open)c.send({k,t:'upd',p:{msgs:{[k]:l}}})}
+  for(const ck in dmc){const c=dmc[ck],k=ck.split('#')[0];if(!c.open||!db.msgs[k])continue;const l=db.msgs[k].filter(m=>m.m>=since);if(l.length)c.send({k,t:'upd',p:{msgs:{[k]:l}}})}
 }
 function mergeIn(p,dmKey){
   if(!p||typeof p!=='object')return false;
@@ -277,12 +304,13 @@ function onHub(c,d){
   }
 }
 /* direct messages: a randomly chosen member of each friendship keeps the chat; the other connects to them */
-function startSelf(n=0){
+const pid=(n,s)=>'hrs2-u-'+hx(new TextEncoder().encode(n))+(s?'-'+(s+1):'');
+function startSelf(slot=0){
   stopSelf();if(!window.Peer||!me)return;
-  const p=new Peer('hrs2-u-'+me);NET.sp=p;NET.spErr=false;
+  const p=new Peer(pid(me,slot));NET.sp=p;NET.spErr=false;
   p.on('open',()=>{status();dmTick()});
-  p.on('connection',c=>c.on('data',d=>onDM(c,d)));
-  p.on('error',e=>{if(e.type==='unavailable-id'){if(n<4)setTimeout(()=>{if(me&&NET.sp===p)startSelf(n+1)},4000);else{NET.spErr=true;status()}}});
+  p.on('connection',c=>{c.on('data',d=>onDM(c,d));const g=()=>{for(const k in dmc)if(dmc[k]===c)delete dmc[k]};c.on('close',g);c.on('error',g)});
+  p.on('error',e=>{if(e.type==='unavailable-id'&&NET.sp===p){if(slot<3)setTimeout(()=>{if(me&&NET.sp===p)startSelf(slot+1)},300);else{NET.spErr=true;status()}}});
   p.on('disconnected',()=>{try{p.reconnect()}catch(e){}});
 }
 function stopSelf(){if(NET.sp){try{NET.sp.destroy()}catch(e){}}NET.sp=null;for(const k in dmc){try{dmc[k].close()}catch(e){}delete dmc[k]}}
@@ -290,21 +318,72 @@ function dmTick(){
   if(!me||!NET.sp||!NET.sp.open)return;
   for(const f of edges(me)){
     if(f.st!=='ok'||f.keep===me||!f.keep)continue;
-    const k='dm:'+fk(f.a,f.b),c=dmc[k];if(c&&(c.open||c.pending>now()-6000))continue;
-    const nc=NET.sp.connect('hrs2-u-'+f.keep,{reliable:true});nc.pending=now();dmc[k]=nc;
-    nc.on('open',()=>{nc.pending=0;nc.send({k,t:'sync',p:{msgs:{[k]:db.msgs[k]||[]}}})});
-    nc.on('data',d=>onDM(nc,d));
-    const gone=()=>{if(dmc[k]===nc)delete dmc[k]};nc.on('close',gone);nc.on('error',gone);
+    const k='dm:'+fk(f.a,f.b);
+    for(let s=0;s<4;s++){
+      const rid=pid(f.keep,s),ck=k+'#'+rid,c=dmc[ck];
+      if(c&&(c.open||c.pending>now()-6000))continue;
+      if(c)try{c.close()}catch(e){}
+      const nc=NET.sp.connect(rid,{reliable:true});nc.pending=now();dmc[ck]=nc;
+      nc.on('open',()=>{nc.pending=0;nc.send({k,t:'sync',p:{msgs:{[k]:db.msgs[k]||[]}}})});
+      nc.on('data',d=>onDM(nc,d));
+      const gone=()=>{if(dmc[ck]===nc)delete dmc[ck]};nc.on('close',gone);nc.on('error',gone);
+    }
   }
 }
 function onDM(c,d){
   if(!d||typeof d.k!=='string'||!d.p||!me)return;
   if(!/^dm:[a-z0-9._-]{2,20}\|[a-z0-9._-]{2,20}$/.test(d.k))return;
   const pr=d.k.slice(3).split('|');if(!pr.includes(me))return;
-  const o=pr.find(x=>x!==me)||me;if(c.peer!=='hrs2-u-'+o)return;
+  const o=pr.find(x=>x!==me)||me;if(![0,1,2,3].some(x=>c.peer===pid(o,x)))return;
   const f=db.fr[pr.join('|')];if(!f||f.del||f.st!=='ok')return;
   mergeIn(d.p,d.k);
-  if(d.t==='sync'){dmc[d.k]=c;c.send({k:d.k,t:'state',p:{msgs:{[d.k]:db.msgs[d.k]||[]}}})}
+  if(d.t==='sync'){dmc[d.k+'#'+c.peer]=c;c.send({k:d.k,t:'state',p:{msgs:{[d.k]:db.msgs[d.k]||[]}}})}
+}
+
+/* ---------- shared relay: encrypted, retained messages so every device sees everything ---------- */
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
+const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null};
+const b64=u=>{let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function mqEnc(o){
+  const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},MQ.key,new TextEncoder().encode(JSON.stringify(o))));
+  const out=new Uint8Array(12+ct.length);out.set(iv);out.set(ct,12);return b64(out);
+}
+async function mqDec(s){const u=unb64(s);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},MQ.key,u.slice(12))))}
+async function mqPub(sec,id,r,k){
+  if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
+  const topic=sec==='msg'?`${MQ.ns}/msg/${k}/${id}`:`${MQ.ns}/${sec}/${id}`,pl=await mqEnc({s:sec,id,k,r});
+  MQ.seen[sec+'/'+id]=r.m;
+  for(const c of MQ.cl)if(c.connected)c.publish(topic,pl,{qos:1,retain:true});
+}
+function mqPush(p){
+  for(const s of ['users','roles','ch','fr'])for(const id in p[s])mqPub(s,id,p[s][id]);
+  for(const k in p.msgs)for(const m of p.msgs[k])mqPub('msg',m.id,m,k);
+}
+function mqSync(){const p=pick(0);const keep=(sec,id,r)=>!(MQ.seen[sec+'/'+id]>=r.m);
+  const q={msgs:{}};for(const s of ['users','roles','ch','fr']){q[s]={};for(const id in p[s])if(keep(s,id,p[s][id]))q[s][id]=p[s][id]}
+  for(const k in p.msgs){const l=p.msgs[k].filter(m=>keep('msg',m.id,m));if(l.length)q.msgs[k]=l}
+  if(!isEmpty(q))mqPush(q)}
+function mqIn(o){
+  if(!o||typeof o!=='object'||!o.r||!okId(o.id))return;
+  MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},msgs:{}};
+  if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
+  else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
+  MQ.seen[o.s+'/'+o.id]=Math.max(MQ.seen[o.s+'/'+o.id]||0,o.r.m||0);
+  clearTimeout(MQ.ft);MQ.ft=setTimeout(()=>{const b=MQ.buf;MQ.buf=null;if(b)mergeIn(b)},300);
+}
+async function mqInit(){
+  if(!window.mqtt||!window.crypto||!crypto.subtle)return;
+  const enc=new TextEncoder(),base=await crypto.subtle.importKey('raw',enc.encode(COMPANY_CODE),'PBKDF2',false,['deriveKey']);
+  MQ.key=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:enc.encode('hrs-chat-key-v1'),iterations:100000},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
+  for(const url of BROKERS){
+    const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
+    c.on('connect',()=>{c.subscribe(MQ.ns+'/#',{qos:1});status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();status()},2500)});
+    c.on('message',async(t,buf)=>{try{mqIn(await mqDec(new TextDecoder().decode(buf)))}catch(e){}});
+    c.on('close',status);c.on('error',()=>{});
+    MQ.cl.push(c);
+  }
 }
 
 /* ---------- accounts, friends, messages ---------- */
@@ -317,7 +396,7 @@ async function signIn(name,pw){
   const u=getU(name);
   if(u){if(await hash(pw,u.s)!==u.h)return 'Wrong username or password.'}
   else{
-    if(!['host','online'].includes(NET.st))return 'Still connecting to the chat network. Wait a few seconds and try again.';
+    if(!MQ.ready&&!['host','online','offline'].includes(NET.st))return 'Still connecting to the chat network. Wait a few seconds and try again.';
     const s=hx(crypto.getRandomValues(new Uint8Array(8)));db.users[name]={h:await hash(pw,s),s,roles:[],m:now()};changed();
   }
   me=name;try{localStorage.setItem('hrs_me',me)}catch(e){}
@@ -354,7 +433,7 @@ function msgsHtml(){
   out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only the owner can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p></div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
-    const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const body=`<div class="tx">${m.x?esc(m.x):''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
     const del=isAdmin()?`<button class="del" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:'';
     out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
       :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
@@ -421,7 +500,7 @@ function render(){
     root.innerHTML=`<div class="login"><div class="card"><div class="logo">hrs</div><h1>Welcome to hrs chat</h1><p>Sign in with your username and password. A new username creates your account.</p>
     <input id="uname" placeholder="Username" maxlength="20" autocomplete="username" aria-label="Username" autofocus>
     <input id="pw" type="password" placeholder="Password (4+ characters)" maxlength="100" autocomplete="current-password" aria-label="Password">
-    <button class="btn" data-a="login">Continue</button><div id="lerr" class="note er" style="margin-top:8px"></div><div class="nst" style="margin-top:12px"></div></div></div>`;
+    <button class="btn" data-a="login">Continue</button><div id="lerr" class="note er" style="margin-top:8px"></div><div class="nst" style="margin-top:12px"></div><div id="lhint" class="note" style="color:var(--muted);font-size:13px"></div></div></div>`;
     if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
     status();return;
   }
@@ -440,16 +519,16 @@ function render(){
       ${chans().map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">#</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=`<div class="main"><div class="mhead"><span class="hash">#</span>${esc(c.name)}${adm?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Rename</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),c.a&&!adm,adm)}</div>
+    main=`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${adm?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Rename</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),c.a&&!adm,adm)}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
-      <button class="item ${v.t==='home'?'on':''}" data-a="home"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
+      <button class="item ${v.t==='home'?'on':''}" data-a="friends"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
       <div class="cap">Direct messages</div>
       ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span></button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
       </div>${meBar}</div>`;
     if(v.t==='dm'){
-      main=`<div class="main"><div class="mhead"><span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false)}</div></div></div>`;
+      main=`<div class="main"><div class="mhead">${BURGER}<span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false)}</div></div></div>`;
     }else{
       let pane='';
       if(v.tab==='add'){
@@ -464,13 +543,13 @@ function render(){
         pane=`<h3>All friends — ${fr.length}</h3>`+(fr.length?fr.map(n=>`<div class="row">${av(n,1)}<div class="nm">${esc(n)}</div>
           <button class="btn" data-a="dm" data-n="${esc(n)}">Message</button><button class="btn no" data-a="unf" data-n="${esc(n)}">Remove</button></div>`).join(''):'<div class="empty">No friends yet. Use Add Friend to send a request.</div>');
       }
-      main=`<div class="main"><div class="mhead"><span style="font-size:20px">☺</span>Friends
+      main=`<div class="main"><div class="mhead">${BURGER}<span style="font-size:20px">☺</span>Friends
         <button class="tab ${v.tab==='all'?'on':''}" data-a="tab" data-n="all">All</button>
         <button class="tab ${v.tab==='pending'?'on':''}" data-a="tab" data-n="pending">Pending${pend?' ('+pend+')':''}</button>
         <button class="tab add ${v.tab==='add'?'on':''}" data-a="tab" data-n="add">Add Friend</button></div><div class="pane">${pane}</div></div>`;
     }
   }
-  root.innerHTML=`<div id="app">${rail}${side}${main}</div>${modalHtml()}${ctxHtml()}`;
+  root.innerHTML=`<div id="app"><div class="nav${v.nav?' open':''}">${rail}${side}</div><div class="scrim" data-a="navx"></div>${main}</div>${modalHtml()}${ctxHtml()}`;
   const m=document.getElementById('msgs');if(m)m.scrollTop=stick?m.scrollHeight:top0;
   hydrate();status();
   if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
@@ -537,7 +616,9 @@ async function doLogin(){
 }
 
 /* ---------- events ---------- */
+let lp,lpFired=false;
 root.addEventListener('click',e=>{
+  if(lpFired){lpFired=false;return}
   if(v.ctx){v.ctx=null;const q=document.querySelector('.ctx');if(q)q.remove()}
   if(e.target.classList.contains('modal')){v.modal=null;return render()}
   const b=e.target.closest('[data-a]');if(!b||b.tagName==='FORM')return;
@@ -553,13 +634,16 @@ root.addEventListener('click',e=>{
   if(a==='rdel'){const id=b.dataset.r;if(!isAdmin()||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
   if(a==='home'){v.t='home';v.peer=null}
   else if(a==='server')v.t='server';
-  else if(a==='ch')v.ch=n;
-  else if(a==='dm'){v.t='dm';v.peer=n}
+  else if(a==='friends'){v.t='home';v.peer=null;v.nav=false}
+  else if(a==='ch'){v.ch=n;v.nav=false}
+  else if(a==='dm'){v.t='dm';v.peer=n;v.nav=false}
+  else if(a==='nav')v.nav=true;
+  else if(a==='navx')v.nav=false;
   else if(a==='tab'){v.tab=n;v.note=null}
   else if(a==='acc'||a==='pfacc')accept(n);
   else if(a==='rej'||a==='pfrej'||a==='unf'||a==='pfunf')dropEdge(n);
   else if(a==='pfadd'){addFriend(n);v.note=null}
-  else if(a==='pfmsg'){v.modal=null;v.t='dm';v.peer=n}
+  else if(a==='pfmsg'){v.modal=null;v.t='dm';v.peer=n;v.nav=false}
   else if(a==='prof')v.modal={t:'prof',n};
   else if(a==='mclose')v.modal=null;
   else if(a==='del1'||a==='del2')v.modal={t:a};
@@ -588,6 +672,12 @@ root.addEventListener('change',e=>{
     img.src=url;
   }
 });
+root.addEventListener('touchstart',e=>{
+  const b=e.target.closest('[data-a=ch]');if(!b||!isAdmin())return;
+  const t=e.touches[0];lpFired=false;
+  lp=setTimeout(()=>{lpFired=true;v.ctx={id:b.dataset.n,x:t.clientX,y:t.clientY};render()},550);
+},{passive:true});
+['touchend','touchmove','touchcancel'].forEach(ev=>root.addEventListener(ev,()=>clearTimeout(lp),{passive:true}));
 root.addEventListener('contextmenu',e=>{
   const b=e.target.closest('[data-a=ch]');if(!b||!isAdmin())return;
   e.preventDefault();v.ctx={id:b.dataset.n,x:e.clientX,y:e.clientY};render();
@@ -610,8 +700,16 @@ root.addEventListener('keydown',e=>{
 if(me&&!getU(me))me=null;
 render();
 if(window.Peer){join();if(me)startSelf()}else{NET.st='offline';status()}
+mqInit().catch(()=>{});
+setTimeout(()=>{if(NET.st==='connecting'&&!MQ.cl.some(c=>c.connected)){NET.st='offline';status()}},12000);
 setInterval(dmTick,6000);
-window.addEventListener('online',()=>{if(!NET.host&&!NET.hub)join()});
+const wake=()=>{
+  if(document.visibilityState==='hidden'||!window.Peer)return;
+  if(NET.host){if(!NET.hp||NET.hp.destroyed)join();else if(NET.hp.disconnected)try{NET.hp.reconnect()}catch(e){}}
+  else if(!(NET.hub&&NET.hub.open))join();
+  if(me){if(!NET.sp||NET.sp.destroyed)startSelf();else if(NET.sp.disconnected)try{NET.sp.reconnect()}catch(e){}}
+};
+document.addEventListener('visibilitychange',wake);window.addEventListener('online',wake);window.addEventListener('pageshow',wake);
 window.addEventListener('beforeunload',()=>{try{NET.hp&&NET.hp.destroy();NET.sp&&NET.sp.destroy()}catch(e){}});
 </script>
 </body>
