@@ -533,7 +533,7 @@ function modalHtml(){
     <div class="cap">Slowmode</div><div class="chips">${SLOWS.map(([n,l])=>`<button class="chip ${(slowSecs(ch))===n?'on':''}" style="--c:#5865f2" data-a="chslow" data-n="${id}" data-s="${n}">${l}</button>`).join('')}</div><span class="sub">Members can send one message per interval. The Owner and roles with “Bypass slowmode” are exempt.</span>
     <div class="cap">Exempt from slowmode here</div><div class="chips">${chips('chslowx','slowx')}</div>
     <div class="cap">Can’t view history here</div><div class="chips">${chips('chnohist','nohist')}</div><span class="sub">These roles only see messages sent after they open the app.</span>`;
-    c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names use lowercase letters, numbers, dashes and underscores.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name" maxlength="24" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
+    c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names can use lowercase letters, numbers, dashes, underscores and emojis.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name 🎮" maxlength="60" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
   }else if(m.t==='medit'){
     const x=(db.msgs[m.k]||[]).find(q=>q.id===m.id);
     c=`<h2>Edit message</h2><input id="medit" value="${esc(m.draft??(x?x.x:''))}" maxlength="2000" autocomplete="off" aria-label="Message text"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="mesave">Save</button></div>`;
@@ -617,12 +617,12 @@ function render(){
 }
 
 /* ---------- admin tools ---------- */
-const cname=s=>s.trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9_-]/g,'').slice(0,24);
+const cname=s=>{const t=Array.from(s.trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9_\-\p{Extended_Pictographic}\u200d\ufe0f\u20e3\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}]/gu,'')).slice(0,24).join('');return /[a-z0-9\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}]/u.test(t)?t:''};
 function uniq(n){const b=n,all=chans().map(c=>c.name);let i=2;while(all.includes(n))n=b+'-'+i++;return n}
 const notice=(title,msg)=>{v.modal={t:'alert',title,msg};render()};
 function submitChan(){
   const m=v.modal,n=cname(document.getElementById('chn').value);
-  if(!n){document.getElementById('cerr').textContent='Use letters, numbers, dashes or underscores.';return false}
+  if(!n){document.getElementById('cerr').textContent='Use letters, numbers, dashes, underscores or emojis.';return false}
   if(m.mode==='add'){const id=newId();db.ch[id]={id,name:uniq(n),o:now(),m:now()};v.ch=id;v.t='server'}
   else{const c=db.ch[m.id];if(c&&n!==c.name){c.name=uniq(n);c.m=now()}}
   v.modal=null;changed();return true;
