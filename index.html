@@ -201,10 +201,20 @@ input,textarea{font-size:16px}
 .burger{position:relative}
 .burger .dot{position:absolute;top:2px;right:0;min-width:16px;height:16px;border-radius:8px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .chk{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.callpanel{position:fixed;left:84px;bottom:72px;z-index:15;background:#111214;border-radius:10px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);width:min(420px,calc(100vw - 24px))}
+.callpanel[hidden]{display:none}
+.callpanel .ct{margin-bottom:8px}.callpanel .ca{display:flex;gap:8px;flex-wrap:wrap}
+.rscreen{display:block;width:100%;max-height:50vh;margin-top:8px;border-radius:6px;background:#000;cursor:zoom-in}
+.rscreen[hidden]{display:none}
+@media(max-width:760px){.callpanel{left:12px;right:12px;bottom:84px;width:auto}}
 </style>
 </head>
 <body>
 <div id="root"></div>
+<input type="file" id="imgin" accept="image/*" hidden>
+<input type="file" id="vidin" accept="video/*" hidden>
+<input type="file" id="picin" accept="image/*" hidden>
+<div id="callpanel" class="callpanel" hidden><div id="callbar"></div><video id="rscreen" class="rscreen" autoplay playsinline hidden></video><audio id="raudio" autoplay></audio></div>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
@@ -268,7 +278,7 @@ const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
 const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del&&!m.pv);
 const burger=()=>`<button class="burger" data-a="nav" aria-label="Open menu">☰${UNR?`<span class="dot">${UNR>9?'9+':UNR}</span>`:''}</button>`;
 const BURGER_OLD='<button class="burger" data-a="nav" aria-label="Open menu">☰</button>';
-const tomb=m=>{m.del=1;bump(m);m.x='';delete m.v;delete m.vt;delete m.ed;delete m.img;delete m.poll;delete m.re};
+const tomb=m=>{m.del=1;bump(m);m.x='';delete m.v;delete m.vt;delete m.ed;delete m.img;delete m.poll;delete m.re;delete m.bn};
 
 /* ---------- video storage (IndexedDB) ---------- */
 let _idb;const idb=()=>_idb||(_idb=new Promise((res,rej)=>{const r=indexedDB.open('hrs_media',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
@@ -348,11 +358,11 @@ function mergeIn(p,dmKey){
       if(b.pv&&!(okId(b.pv)&&Array.isArray(b.o)&&b.id==='pv-'+b.pv+'-'+b.u))continue;
       if(!b.del&&!b.pv&&!b.poll&&!b.img&&!b.v&&!(typeof b.x==='string'&&b.x))continue;
       const a=idx.get(b.id);
-      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,at:Date.now()>BURST?now():0,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.img&&okId(b.img))n.img=b.img;if(b.re&&okId(b.re))n.re=b.re;
+      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,at:Date.now()>BURST?now():0,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.img&&okId(b.img))n.img=b.img;if(Number.isInteger(b.bn)&&b.bn>0&&b.bn<=120)n.bn=b.bn;if(b.re&&okId(b.re))n.re=b.re;
       if(b.pv&&okId(b.pv)&&Array.isArray(b.o)&&b.id==='pv-'+b.pv+'-'+b.u){n.pv=b.pv;n.o=cleanO(b.o)}
       if(b.poll&&typeof b.poll==='object'&&typeof b.poll.q==='string'&&Array.isArray(b.poll.o)&&b.poll.o.length>=2)n.poll={q:b.poll.q.slice(0,200),o:b.poll.o.slice(0,10).map(z=>String(z).slice(0,80)),mu:!!b.poll.mu};
       if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);typClear(k,n.u);add=ch=true}
-      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;delete a.img;delete a.poll;ch=true}
+      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;delete a.img;delete a.poll;delete a.bn;ch=true}
       else if(!a.del&&!b.del&&b.m>a.m&&b.u===a.u&&typeof b.x==='string'){if(a.pv){if(Array.isArray(b.o))a.o=cleanO(b.o);a.m=b.m}else{a.x=b.x.slice(0,2000);a.m=b.m;a.ed=Number.isFinite(b.ed)?b.ed:b.m}ch=true}
     }
     if(add)L.sort((x,y)=>x.t-y.t);
@@ -380,6 +390,7 @@ function startSelf(slot=0){
   stopSelf();if(!window.Peer||!me)return;
   const p=new Peer(pid(me,slot));NET.sp=p;NET.spErr=false;
   p.on('open',()=>{status();dmTick()});
+  p.on('call',onCall);
   p.on('connection',c=>{c.on('data',d=>onDM(c,d));const g=()=>{for(const k in dmc)if(dmc[k]===c)delete dmc[k]};c.on('close',g);c.on('error',g)});
   p.on('error',e=>{if(e.type==='unavailable-id'&&NET.sp===p){if(slot<3)setTimeout(()=>{if(me&&NET.sp===p)startSelf(slot+1)},300);else{NET.spErr=true;status()}}});
   p.on('disconnected',()=>{try{p.reconnect()}catch(e){}});
@@ -414,7 +425,7 @@ function onDM(c,d){
 
 /* ---------- shared relay: encrypted, retained messages so every device sees everything ---------- */
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
-const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null,want:{},pend:[]};
+const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null,want:{},pend:[],parts:{}};
 const b64=u=>{let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
 const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function mqEnc(o,key=MQ.key){
@@ -430,14 +441,22 @@ async function mqPub(sec,id,r,k){
   MQ.seen[sec+'/'+id]=r.m;
   for(const c of MQ.cl)if(c.connected)c.publish(topic,pl,{qos:1,retain:true});
 }
-async function mqPubImg(id,k){
+const CH=150*1024;
+async function mqEncB(bytes,key){const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes)),o=new Uint8Array(12+ct.length);o.set(iv);o.set(ct,12);return o}
+async function mqDecB(u,key){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},key,u.slice(12)))}
+async function mqPubBlob(id,k){
   const key=k.startsWith('dm:')?await dmKey(k.slice(3)):MQ.key;
   if(!key||!MQ.cl.some(c=>c.connected)){if(!MQ.pend.some(x=>x[0]===id))MQ.pend.push([id,k]);return}
   const blob=await getBlob(id);if(!blob)return;
-  const pl=await mqEnc({id,b:b64(new Uint8Array(await blob.arrayBuffer()))},key);
-  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/img/${id}`,pl,{qos:1,retain:true});
+  const buf=new Uint8Array(await blob.arrayBuffer()),n=Math.max(1,Math.ceil(buf.length/CH));
+  for(let i=0;i<n;i++){
+    const d=buf.subarray(i*CH,(i+1)*CH),pl=new Uint8Array(4+d.length);pl[0]=i>>8;pl[1]=i&255;pl[2]=n>>8;pl[3]=n&255;pl.set(d,4);
+    const out=await mqEncB(pl,key);
+    for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/blob/${id}/${i}`,out,{qos:1,retain:true});
+  }
 }
-function mqWantImg(id,k){if(!k||MQ.want[id])return;MQ.want[id]=k;for(const c of MQ.cl)if(c.connected)c.subscribe(`${MQ.ns}/img/${id}`,{qos:1})}
+function mqWantBlob(id,k,type){if(!k||MQ.want[id])return;MQ.want[id]={k,type:type||'application/octet-stream',t0:Date.now()};for(const c of MQ.cl)if(c.connected)c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1})}
+function clearBlobs(id,n){for(let i=0;i<(n||1);i++)for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/blob/${id}/${i}`,'',{retain:true,qos:1})}
 async function mqPubDM(k,m){
   if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
   const pair=k.slice(3),[a,b]=pair.split('|');if(!a||!b||!okId(m.id))return;
@@ -476,9 +495,18 @@ async function mqInit(){
   MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
   for(const url of BROKERS){
     const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
-    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/img/${id}`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubImg(id,k));status()},2500)});
+    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubBlob(id,k));status()},2500)});
     c.on('message',async(t,buf)=>{try{
-      const txt=new TextDecoder().decode(buf),p=t.split('/');
+      const p=t.split('/');
+      if(p[2]==='blob'){
+        const id=p[3],w=MQ.want[id];if(!w||!buf||!buf.length)return;
+        const u=await mqDecB(new Uint8Array(buf),w.k.startsWith('dm:')?await dmKey(w.k.slice(3)):MQ.key);
+        const i=(u[0]<<8)|u[1],n=(u[2]<<8)|u[3];if(!n||n>200||i>=n)return;
+        const e=MQ.parts[id]=MQ.parts[id]||{n,got:{}};e.got[i]=u.slice(4);
+        if(Object.keys(e.got).length===e.n){const parts=[];for(let j=0;j<e.n;j++)parts.push(e.got[j]);await putBlob(id,new Blob(parts,{type:w.type}));delete MQ.want[id];delete MQ.parts[id];c.unsubscribe(`${MQ.ns}/blob/${id}/+`);renderSoon()}
+        return;
+      }
+      const txt=new TextDecoder().decode(buf);
       if(p[2]==='typing'){
         let room,key;
         if(p[3]==='ch'&&p[4]){room='ch:'+p[4];key=MQ.key}
@@ -486,7 +514,6 @@ async function mqInit(){
         else return;
         const o=await mqDec(txt,key);if(o&&typeof o.u==='string')typSet(room,o.u);return;
       }
-      if(p[2]==='img'){const id=p[3],kk=MQ.want[id];if(!kk||!txt)return;const o=await mqDec(txt,kk.startsWith('dm:')?await dmKey(kk.slice(3)):MQ.key);if(o.id!==id)return;await putBlob(id,new Blob([unb64(o.b)],{type:'image/jpeg'}));delete MQ.want[id];c.unsubscribe(t);renderSoon();return}
       if(p[2]==='dm'){if(!me||!p[3]||!p[4]||(p[3]!==me&&p[4]!==me))return;const pair=[p[3],p[4]].sort().join('|');mqIn(await mqDec(txt,await dmKey(pair)),pair)}
       else mqIn(await mqDec(txt));
     }catch(e){}});
@@ -496,7 +523,7 @@ async function mqInit(){
 }
 
 /* ---------- accounts, friends, messages ---------- */
-function signOut(){me=null;stopSelf();try{localStorage.removeItem('hrs_me')}catch(e){}v.modal=null;v.ctx=null;render()}
+function signOut(){endCall();me=null;stopSelf();try{localStorage.removeItem('hrs_me')}catch(e){}v.modal=null;v.ctx=null;render()}
 async function signIn(name,pw){
   name=name.trim().toLowerCase();
   if(!/^[a-z0-9._-]{2,20}$/.test(name))return 'Use 2–20 letters, numbers, dots, dashes or underscores for the username.';
@@ -667,15 +694,14 @@ async function sendPhoto(f){
   if(!blob||blob.size>700*1024)return notice('Photo is too large','Try a smaller photo.');
   const id=newId(),k=key(),cap=document.getElementById('msgin');
   try{await putBlob(id,blob)}catch(e){return notice('Photo not saved','Storage on this device may be full.')}
-  const rec={id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',img:id};
+  const rec={id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',img:id,bn:Math.max(1,Math.ceil(blob.size/CH))};
   if(v.reply&&v.reply.k===k){rec.re=v.reply.id;v.reply=null}
   (db.msgs[k]=db.msgs[k]||[]).push(rec);if(cap)cap.value='';iurl[id]=URL.createObjectURL(blob);
-  changed();mqPubImg(id,k);render();
+  changed();mqPubBlob(id,k);render();
 }
-function imgGone(id){
+function imgGone(id,n){
   if(Object.values(db.msgs).some(L=>L.some(x=>x.img===id&&!x.del)))return;
-  delBlob(id).catch(()=>{});delete iurl[id];
-  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/img/${id}`,'',{retain:true,qos:1});
+  delBlob(id).catch(()=>{});delete iurl[id];clearBlobs(id,n);
 }
 function acUpdate(el){
   const box=document.getElementById('ac');if(!box)return;
@@ -685,6 +711,93 @@ function acUpdate(el){
   if(can('pingall')&&'everyone'.startsWith(q))l.unshift('everyone');
   box.innerHTML=l.map(n=>`<button type="button" data-a="acpick" data-n="${esc(n)}">${av(n)}<span>@${esc(n)}</span></button>`).join('');
 }
+
+/* ---------- voice calls + screen sharing (direct between two friends) ---------- */
+const CALL={st:'idle',peer:null,call:null,pend:[],inc:null,stream:null,screen:null,screenCall:null,muted:false,t0:0,tm:null};
+let ringT,ringCtx;
+function ring(on){
+  clearInterval(ringT);if(!on)return;
+  const beep=()=>{try{ringCtx=ringCtx||new (window.AudioContext||window.webkitAudioContext)();const o=ringCtx.createOscillator(),g=ringCtx.createGain();o.frequency.value=440;g.gain.value=.08;o.connect(g);g.connect(ringCtx.destination);o.start();setTimeout(()=>o.stop(),400);if(navigator.vibrate)navigator.vibrate(300)}catch(e){}};
+  beep();ringT=setInterval(beep,1500);
+}
+function callUI(){
+  const p=document.getElementById('callpanel'),bar=document.getElementById('callbar');if(!p||!bar)return;
+  if(CALL.st==='idle'){p.hidden=true;bar.innerHTML='';return}
+  p.hidden=false;const N=esc(CALL.peer||'');
+  if(CALL.st==='out')bar.innerHTML=`<div class="ct">📞 Calling <b>${N}</b>…</div><div class="ca"><button class="btn no" data-c="hang">Cancel</button></div>`;
+  else if(CALL.st==='in')bar.innerHTML=`<div class="ct">📞 <b>${N}</b> is calling you</div><div class="ca"><button class="btn" style="background:var(--green)" data-c="accept">Accept</button><button class="btn no" data-c="hang">Decline</button></div>`;
+  else bar.innerHTML=`<div class="ct">🎙 In call with <b>${N}</b> · <span id="ctime">0:00</span></div><div class="ca"><button class="btn sec" data-c="mute">${CALL.muted?'Unmute':'Mute'}</button>${navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-c="share">${CALL.screen?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-c="hang">Hang up</button></div>`;
+}
+const micOpts={audio:{echoCancellation:true,noiseSuppression:true}};
+function playRemote(rs){const a=document.getElementById('raudio');if(a){a.srcObject=rs;a.play().catch(()=>{})}}
+function endCall(){
+  clearTimeout(CALL.tm);ring(false);
+  for(const c of [CALL.call,CALL.inc,CALL.screenCall,...CALL.pend])try{c&&c.close()}catch(e){}
+  for(const st of [CALL.stream,CALL.screen])try{st&&st.getTracks().forEach(t=>t.stop())}catch(e){}
+  const a=document.getElementById('raudio');if(a)a.srcObject=null;
+  const sv=document.getElementById('rscreen');if(sv){sv.srcObject=null;sv.hidden=true}
+  Object.assign(CALL,{st:'idle',peer:null,call:null,pend:[],inc:null,stream:null,screen:null,screenCall:null,muted:false,tm:null});
+  callUI();
+}
+async function startCall(peer){
+  if(CALL.st!=='idle')return notice('Already in a call','Hang up before starting another call.');
+  if(!me||!friendsOf(me).includes(peer))return;
+  if(!NET.sp||!NET.sp.open)return notice('Calls unavailable','Your connection isn’t ready yet. Try again in a few seconds.');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return notice('Calls unavailable','This browser can’t use the microphone here. Calls need a secure (https) page.');
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia(micOpts)}catch(e){return notice('Microphone blocked','Allow microphone access in your browser to make a call.')}
+  CALL.st='out';CALL.peer=peer;CALL.stream=stream;CALL.muted=false;callUI();ring(true);
+  CALL.pend=[0,1,2,3].map(s=>{
+    const c=NET.sp.call(pid(peer,s),stream,{metadata:{from:me,kind:'voice'}});
+    c.on('stream',rs=>{
+      if(CALL.call)return;CALL.call=c;CALL.st='active';CALL.t0=Date.now();clearTimeout(CALL.tm);ring(false);
+      CALL.pend.forEach(x=>{if(x!==c)try{x.close()}catch(e){}});CALL.pend=[];playRemote(rs);callUI();
+    });
+    c.on('close',()=>{if(CALL.call===c)endCall()});c.on('error',()=>{});return c;
+  });
+  CALL.tm=setTimeout(()=>{if(CALL.st==='out'){endCall();notice('No answer',peer+' didn’t pick up.')}},45000);
+}
+function onCall(call){
+  const md=call.metadata||{},from=md.from;
+  if(!me||typeof from!=='string'||!friendsOf(me).includes(from)||![0,1,2,3].some(s=>call.peer===pid(from,s))){try{call.close()}catch(e){}return}
+  if(md.kind==='screen'){
+    if(CALL.st==='active'&&CALL.peer===from){
+      call.answer();
+      call.on('stream',st=>{const sv=document.getElementById('rscreen');if(sv){sv.srcObject=st;sv.hidden=false;sv.play().catch(()=>{})}});
+      call.on('close',()=>{const sv=document.getElementById('rscreen');if(sv){sv.srcObject=null;sv.hidden=true}});
+    }else try{call.close()}catch(e){}
+    return;
+  }
+  if(CALL.st!=='idle'){try{call.close()}catch(e){}return}
+  CALL.st='in';CALL.peer=from;CALL.inc=call;callUI();ring(true);
+  call.on('close',()=>{if(CALL.inc===call&&CALL.st==='in')endCall()});
+  CALL.tm=setTimeout(()=>{if(CALL.st==='in')endCall()},45000);
+}
+async function acceptCall(){
+  const c=CALL.inc;if(!c)return;
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia(micOpts)}catch(e){endCall();return notice('Microphone blocked','Allow microphone access in your browser to answer calls.')}
+  CALL.stream=stream;ring(false);clearTimeout(CALL.tm);
+  c.on('stream',rs=>{CALL.call=c;CALL.inc=null;CALL.st='active';CALL.t0=Date.now();playRemote(rs);callUI()});
+  c.on('close',()=>{if(CALL.call===c||CALL.inc===c)endCall()});
+  c.answer(stream);
+}
+function stopShare(){try{CALL.screenCall&&CALL.screenCall.close()}catch(e){}try{CALL.screen&&CALL.screen.getTracks().forEach(t=>t.stop())}catch(e){}CALL.screen=null;CALL.screenCall=null}
+async function toggleShare(){
+  if(CALL.st!=='active'||!CALL.call)return;
+  if(CALL.screen){stopShare();return callUI()}
+  let st;try{st=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false})}catch(e){return}
+  CALL.screen=st;CALL.screenCall=NET.sp.call(CALL.call.peer,st,{metadata:{from:me,kind:'screen'}});
+  st.getVideoTracks()[0].addEventListener('ended',()=>{if(CALL.screen===st){stopShare();callUI()}});
+  callUI();
+}
+const callPanelEl=document.getElementById('callpanel');if(callPanelEl)callPanelEl.addEventListener('click',e=>{
+  if(e.target.id==='rscreen'){const sv=e.target,f=sv.requestFullscreen||sv.webkitRequestFullscreen;if(f)f.call(sv);return}
+  const b=e.target.closest('[data-c]');if(!b)return;const a=b.dataset.c;
+  if(a==='hang')endCall();
+  else if(a==='accept')acceptCall();
+  else if(a==='mute'&&CALL.stream){CALL.muted=!CALL.muted;CALL.stream.getAudioTracks().forEach(t=>t.enabled=!CALL.muted);callUI()}
+  else if(a==='share')toggleShare();
+});
+setInterval(()=>{const el=document.getElementById('ctime');if(el&&CALL.st==='active'){const sec=Math.floor((Date.now()-CALL.t0)/1000);el.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}},1000);
 
 /* ---------- typing indicators ---------- */
 const TYP={};let typSent=0;
@@ -723,7 +836,7 @@ function msgsHtml(){
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000||!!m.re;
     let rp='';
     if(m.re){const o=by.get(m.re);rp=o?`<div class="reply" data-a="jump" data-id="${esc(o.id)}"><span class="ri">↱</span><b style="color:${rc(o.u)}">${esc(o.u)}</b> <span class="rs">${esc(snip(o))}</span></div>`:'<div class="reply"><span class="ri">↱</span><span class="rs">The original message was deleted or isn’t available.</span></div>'}
-    const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" data-k="${esc(k)}" data-t="${esc(m.vt||'video/mp4')}" controls preload="metadata"></video>`:''}`;
     const tl=(canRe?`<button data-a="reply" data-id="${esc(m.id)}" aria-label="Reply">Reply</button>`:'')+(m.u===me&&!m.poll?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
     const png=m.u!==me&&pingedMsg(m,me,by)?' ping':'';
     out+=first?`<div class="msg first${png}" data-mid="${esc(m.id)}">${av(m.u,1)}<div>${rp}${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
@@ -735,7 +848,7 @@ function msgsHtml(){
 function hydrate(){
   document.querySelectorAll('img[data-img]').forEach(async el=>{
     const id=el.dataset.img;
-    try{if(!iurl[id]){const b=await getBlob(id);if(b)iurl[id]=URL.createObjectURL(b);else{mqWantImg(id,el.dataset.k);return}}el.src=iurl[id];el.classList.add('ok')}catch(e){}
+    try{if(!iurl[id]){const b=await getBlob(id);if(b)iurl[id]=URL.createObjectURL(b);else{mqWantBlob(id,el.dataset.k,'image/jpeg');return}}el.src=iurl[id];el.classList.add('ok')}catch(e){}
   });
   document.querySelectorAll('img.emb-img').forEach(i=>{i.onerror=()=>{const p=document.createElement('div');p.className='sub';p.textContent='Image couldn’t be loaded.';i.replaceWith(p)}});document.querySelectorAll('video[data-vid]').forEach(async el=>{
   const id=el.dataset.vid;
@@ -743,7 +856,7 @@ function hydrate(){
     if(!vurl[id]){
       const b=await getBlob(id);
       if(b)vurl[id]=URL.createObjectURL(b);
-      else{const h=NET.hub&&NET.hub.open;if(h&&!asked[id]){asked[id]=1;NET.hub.send({k:'hub',t:'getv',id})}if(h&&!missing[id])return;throw 0}
+      else{mqWantBlob(id,el.dataset.k,el.dataset.t);const h=NET.hub&&NET.hub.open;if(h&&!asked[id]){asked[id]=1;NET.hub.send({k:'hub',t:'getv',id})}if((h&&!missing[id])||(MQ.want[id]&&Date.now()-MQ.want[id].t0<25000))return;throw 0}
     }
     el.src=vurl[id];
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
@@ -751,14 +864,14 @@ function hydrate(){
 function composer(ph,lock,att,top,poll){
   const bt=(a,t,g)=>`<button type="button" class="clip" data-a="${a}" title="${t}" aria-label="${t}">${g}</button>`;
   return `<form class="composer" data-a="send">${top||''}<div id="ac" class="ac"></div><div class="cbox">${lock?'<textarea id="msgin" rows="1" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message"></textarea>'
-  :`${bt('attachimg','Send a photo','📷')}${att?bt('attach','Send a video','🎞'):''}${poll?bt('pollopen','Create a poll','📊'):''}<textarea id="msgin" rows="1" placeholder="${ph}" maxlength="2000" aria-label="Message"></textarea><button type="submit" class="sendbtn" aria-label="Send message">➤</button>`}</div><div id="typing" class="typing" aria-live="polite"></div>${lock?'':`<input type="file" id="imgin" accept="image/*" hidden>${att?'<input type="file" id="vidin" accept="video/*" hidden>':''}`}</form>`;
+  :`${bt('attachimg','Send a photo','📷')}${att?bt('attach','Send a video','🎞'):''}${poll?bt('pollopen','Create a poll','📊'):''}<textarea id="msgin" rows="1" placeholder="${ph}" maxlength="2000" aria-label="Message"></textarea><button type="submit" class="sendbtn" aria-label="Send message">➤</button>`}</div><div id="typing" class="typing" aria-live="polite"></div></form>`;
 }
 function modalHtml(){
   const m=v.modal;if(!m)return '';let c='';
   if(m.t==='prof'){
     const n=m.n,t=getU(n);if(!t)return '';
     const self=n===me,N=esc(n);let act='';
-    if(self)act=`<button class="btn sec" data-a="pickpic">Change picture</button>${safePic(t.pic)?'<button class="btn sec" data-a="rmpic">Remove picture</button>':''}<button class="btn no" data-a="del1">Delete account</button><input type="file" id="picin" accept="image/*" hidden>`;
+    if(self)act=`<button class="btn sec" data-a="pickpic">Change picture</button>${safePic(t.pic)?'<button class="btn sec" data-a="rmpic">Remove picture</button>':''}<button class="btn no" data-a="del1">Delete account</button>`;
     else if(friendsOf(me).includes(n))act=`<button class="btn" data-a="pfmsg" data-n="${N}">Message</button><button class="btn no" data-a="pfunf" data-n="${N}">Remove friend</button>`;
     else if(incOf(me).includes(n))act=`<button class="btn" data-a="pfacc" data-n="${N}">Accept request</button><button class="btn no" data-a="pfrej" data-n="${N}">Decline</button>`;
     else if(outOf(me).includes(n))act=`<button class="btn sec" data-a="pfrej" data-n="${N}">Cancel request</button>`;
@@ -846,7 +959,7 @@ function render(){
       ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span>${um[n]?`<span class="badge" style="position:static;border:0;margin-left:auto">${um[n]}</span>`:''}</button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
       </div>${meBar}</div>`;
     if(v.t==='dm'){
-      main=`<div class="main"><div class="mhead">${burger()}<span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false,replyBar())}</div></div></div>`;
+      main=`<div class="main"><div class="mhead">${burger()}<span class="hash">@</span>${nameTag(v.peer)}<span class="tools"><button class="tab" data-a="call" data-n="${esc(v.peer)}">📞 Call</button></span></div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false,replyBar())}</div></div></div>`;
     }else{
       let pane='';
       if(v.tab==='add'){
@@ -890,7 +1003,7 @@ function submitChan(){
 async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NET.hub.send({k:'hub',t:'putv',id,ty:b.type,buf:await b.arrayBuffer()})}
 async function dupChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
-  for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b)}}catch(e){}}L.push(n)}
+  for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b);mqPubBlob(n.v,'official:'+nid)}}catch(e){}}L.push(n)}
   db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
@@ -903,16 +1016,16 @@ function doDelChan(id){
   (db.msgs['official:'+id]||[]).forEach(m=>{if(m.v)delBlob(m.v).catch(()=>{});tomb(m)});
   db.ch[id].del=1;bump(db.ch[id]);if(v.ch===id)v.ch=chans()[0].id;changed();
 }
-function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;const im=m.img;if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed();if(im)imgGone(im)}
+function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;const im=m.img,bn=m.bn,vv=m.v;if(vv)delBlob(vv).catch(()=>{});tomb(m);changed();if(im)imgGone(im,bn);if(vv)clearBlobs(vv,bn)}
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;bump(r);changed()}}
 async function sendVideo(f){
   if(!can('video')||v.t!=='server')return;
   if(!f.type.startsWith('video/'))return notice('Can’t send this file','Choose a video file.');
-  if(f.size>50*1024*1024)return notice('Video is too large','Videos are shared directly between devices, so they must be under 50 MB.');
+  if(f.size>12*1024*1024)return notice('Video is too large','Videos are shared through the chat in small pieces, so they must be under 12 MB. Short clips work best.');
   const id=newId(),cap=document.getElementById('msgin');
   try{await putBlob(id,f)}catch(e){return notice('Video not saved','The video couldn’t be saved. Storage on this device may be full.')}
-  (db.msgs[key()]=db.msgs[key()]||[]).push({id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',v:id,vt:f.type});
-  if(cap)cap.value='';vurl[id]=URL.createObjectURL(f);changed();uploadVid(id,f);render();
+  (db.msgs[key()]=db.msgs[key()]||[]).push({id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',v:id,vt:f.type,bn:Math.max(1,Math.ceil(f.size/CH))});
+  if(cap)cap.value='';vurl[id]=URL.createObjectURL(f);changed();uploadVid(id,f);mqPubBlob(id,key());render();
 }
 async function delAccount(){
   const n=document.getElementById('delname').value.trim().toLowerCase(),p=document.getElementById('delpw').value,er=document.getElementById('derr'),u=getU(me);
@@ -952,6 +1065,7 @@ root.addEventListener('click',e=>{
   if(a==='attach')return document.getElementById('vidin').click();
   if(a==='pickpic')return document.getElementById('picin').click();
   if(a==='attachimg')return document.getElementById('imgin').click();
+  if(a==='call')return startCall(n);
   if(a==='rcancel'){v.reply=null;return render()}
   if(a==='jump'){const el=root.querySelector('[data-mid="'+String(b.dataset.id).replace(/"/g,'')+'"]');if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500)}return}
   if(a==='acpick'){const el=document.getElementById('msgin');if(!el)return;const pre=el.value.slice(0,el.selectionStart),post=el.value.slice(el.selectionStart);el.value=pre.replace(/@([a-z0-9._-]*)$/i,'@'+n+' ')+post;document.getElementById('ac').innerHTML='';el.focus();grow(el);return}
@@ -1013,7 +1127,7 @@ root.addEventListener('submit',e=>{
   else if(f.dataset.a==='addf'){addFriend(document.getElementById('friendin').value);render()}
 });
 root.addEventListener('input',e=>{if(e.target.id==='msgin'){grow(e.target);acUpdate(e.target);if(e.target.value.trim())typPing()}});
-root.addEventListener('change',e=>{
+document.addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   if(e.target.id==='imgin'){sendPhoto(f);e.target.value='';return}
   if(e.target.id==='vidin'){sendVideo(f);e.target.value='';return}
