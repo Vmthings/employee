@@ -264,9 +264,12 @@ async function hash(pw,salt){
 const getU=n=>{const u=db.users[n];return u&&!u.del&&u.h?u:null};
 const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
+const dn=n=>{const u=db.users[n];return u&&!u.del&&typeof u.nick==='string'&&u.nick.trim()?u.nick.slice(0,32):n};
+const dnS=n=>{const u=db.users[n];return u&&!u.del&&typeof u.snick==='string'&&u.snick.trim()?u.snick.slice(0,32):dn(n)};
+const nm=n=>v.t==='server'?dnS(n):dn(n);
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nick','Manage nicknames'],['snick','Change own server nickname'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
 const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
 function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
 function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
@@ -284,8 +287,8 @@ const oth=(f,n)=>f.a===n?f.b:f.a;
 const friendsOf=n=>edges(n).filter(f=>f.st==='ok').map(f=>oth(f,n));
 const incOf=n=>edges(n).filter(f=>f.st==='req'&&f.from!==n).map(f=>f.from);
 const outOf=n=>edges(n).filter(f=>f.st==='req'&&f.from===n).map(f=>oth(f,n));
-const av=(n,c,big)=>{const p=safePic((db.users[n]||{}).pic);return `<div class="av${big?' big':''}${c?' tap':''}"${c?` data-a="prof" data-n="${esc(n)}"`:''} style="${p?`background:url(${p}) center/cover`:`background:hsl(${hue(n)} 55% 45%)`}">${p?'':esc(n[0]||'?')}</div>`};
-const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(n)}</span>`;
+const av=(n,c,big)=>{const p=safePic((db.users[n]||{}).pic);return `<div class="av${big?' big':''}${c?' tap':''}"${c?` data-a="prof" data-n="${esc(n)}"`:''} style="${p?`background:url(${p}) center/cover`:`background:hsl(${hue(n)} 55% 45%)`}">${p?'':esc(Array.from(nm(n))[0]||'?')}</div>`};
+const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(nm(n))}</span>`;
 const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
 const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del&&!m.pv);
 const burger=()=>`<button class="burger" data-a="nav" aria-label="Open menu">☰${UNR?`<span class="dot">${UNR>9?'9+':UNR}</span>`:''}</button>`;
@@ -598,7 +601,7 @@ function md(src,author){
   t=t.replace(/\[([^\]\n]{1,100})\]\((https?:\/\/[^\s)]{1,500})\)/g,(m,x,u)=>H(link(u,x)));
   t=t.replace(/<(https?:\/\/[^\s>]{1,500})>|(https?:\/\/[^\s<]{1,500}[^\s<.,;:!?)\]'"])/g,(m,a,b)=>{const u=a||b;return H(link(u,u))});
   t=t.replace(/\\([\\*_~|`>#\[\]()-])/g,(m,c)=>H(esc(c)));
-  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>(getU(n)||(n==='everyone'&&author&&can('pingall',author)))?p+H(`<span class="mention">@${esc(n)}</span>`):m);
+  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>(getU(n)||(n==='everyone'&&author&&can('pingall',author)))?p+H(`<span class="mention" title="@${esc(n)}">@${esc(nm(n))}</span>`):m);
   t=esc(t);
   const inl=x=>x
     .replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>')
@@ -662,7 +665,7 @@ function replyBar(){
   if(!v.reply)return '';
   const m=(db.msgs[v.reply.k]||[]).find(x=>x.id===v.reply.id);
   if(!m||m.del){v.reply=null;return ''}
-  return `<div class="replybar">Replying to <b style="color:${rc(m.u)}">${esc(m.u)}</b><span class="rs">${esc(snip(m))}</span><button type="button" data-a="rcancel" aria-label="Cancel reply">✕</button></div>`;
+  return `<div class="replybar">Replying to <b style="color:${rc(m.u)}">${esc(nm(m.u))}</b><span class="rs">${esc(snip(m))}</span><button type="button" data-a="rcancel" aria-label="Cancel reply">✕</button></div>`;
 }
 const votesOf=(k,pid)=>(db.msgs[k]||[]).filter(x=>x.pv===pid&&!x.del&&Array.isArray(x.o)&&x.o.length);
 function pollHtml(m,k){
@@ -720,9 +723,9 @@ function acUpdate(el){
   const box=document.getElementById('ac');if(!box)return;
   const m=el.value.slice(0,el.selectionStart).match(/(^|\s)@([a-z0-9._-]*)$/i);
   if(!m){box.innerHTML='';return}
-  const q=m[2].toLowerCase(),l=users().filter(n=>n.startsWith(q)&&n!==me).slice(0,5);
+  const q=m[2].toLowerCase(),l=users().filter(n=>(n.startsWith(q)||nm(n).toLowerCase().startsWith(q))&&n!==me).slice(0,5);
   if(can('pingall')&&'everyone'.startsWith(q))l.unshift('everyone');
-  box.innerHTML=l.map(n=>`<button type="button" data-a="acpick" data-n="${esc(n)}">${av(n)}<span>@${esc(n)}</span></button>`).join('');
+  box.innerHTML=l.map(n=>`<button type="button" data-a="acpick" data-n="${esc(n)}">${av(n)}<span>${esc(nm(n))}${nm(n)!==n?' <small>@'+esc(n)+'</small>':''}</span></button>`).join('');
 }
 
 /* ---------- voice calls + screen sharing (direct between two friends) ---------- */
@@ -736,7 +739,7 @@ function ring(on){
 function callUI(){
   const p=document.getElementById('callpanel'),bar=document.getElementById('callbar');if(!p||!bar)return;
   if(CALL.st==='idle'){p.hidden=true;bar.innerHTML='';return}
-  p.hidden=false;const N=esc(CALL.peer||'');
+  p.hidden=false;const N=esc(dn(CALL.peer||''));
   if(CALL.st==='out')bar.innerHTML=`<div class="ct">📞 Calling <b>${N}</b>…</div><div class="ca"><button class="btn no" data-c="hang">Cancel</button></div>`;
   else if(CALL.st==='in')bar.innerHTML=`<div class="ct">📞 <b>${N}</b> is calling you</div><div class="ca"><button class="btn" style="background:var(--green)" data-c="accept">Accept</button><button class="btn no" data-c="hang">Decline</button></div>`;
   else bar.innerHTML=`<div class="ct">🎙 In call with <b>${N}</b> · <span id="ctime">0:00</span></div><div class="ca">${SCR.dm?'<button class="btn sec" data-c="watch">Watch screen</button>':''}<button class="btn sec" data-c="mute">${CALL.muted?'Unmute':'Mute'}</button>${navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-c="share">${CALL.screen?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-c="hang">Hang up</button></div>`;
@@ -768,7 +771,7 @@ async function startCall(peer){
     });
     c.on('close',()=>{if(CALL.call===c)endCall()});c.on('error',()=>{});return c;
   });
-  CALL.tm=setTimeout(()=>{if(CALL.st==='out'){endCall();notice('No answer',peer+' didn’t pick up.')}},45000);
+  CALL.tm=setTimeout(()=>{if(CALL.st==='out'){endCall();notice('No answer',dn(peer)+' didn’t pick up.')}},45000);
 }
 function onCall(call){
   const md=call.metadata||{},from=md.from;
@@ -777,7 +780,7 @@ function onCall(call){
   if(md.kind==='screen'){
     if(CALL.st==='active'&&CALL.peer===from){
       call.answer();
-      call.on('stream',st=>{screenOn('dm',st,from);callUI()});
+      call.on('stream',st=>{screenOn('dm',st,dn(from));callUI()});
       call.on('close',()=>{screenOff('dm');callUI()});
     }else try{call.close()}catch(e){}
     return;
@@ -854,11 +857,11 @@ if(svEl)svEl.addEventListener('click',e=>{
 const VC={ch:null,stream:null,calls:{},scr:null,scrCalls:{},muted:false,deaf:false,hb:null,dummy:null};
 const VCP={};
 const vcPeople=ch=>Object.entries(VCP[ch]||{}).filter(([,x])=>x.exp>Date.now()).map(([u])=>u).sort();
-const vcList=id=>{const l=vcPeople(id);return l.length?`<div class="vcl">${l.map(u=>`<div class="vcu">${av(u)}<span>${esc(u)}</span></div>`).join('')}</div>`:''};
+const vcList=id=>{const l=vcPeople(id);return l.length?`<div class="vcl">${l.map(u=>`<div class="vcu">${av(u)}<span>${esc(dnS(u))}</span></div>`).join('')}</div>`:''};
 function voiceMain(c,mc){
   const part=vcPeople(c.id),here=VC.ch===c.id,id=esc(c.id);
   return `<div class="main"><div class="mhead">${burger()}<span class="hash">🔊</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${id}">Settings</button><button class="tab" data-a="chdup" data-n="${id}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${id}">Remove</button></span>`:''}</div>
-  <div class="pane"><div class="vcgrid">${part.map(u=>`<button class="vcc" data-a="prof" data-n="${esc(u)}">${av(u,0,1)}<span style="color:${rc(u)}">${esc(u)}${u===me?' (you)':''}</span></button>`).join('')||'<div class="empty">Nobody is in this voice channel yet.</div>'}</div>
+  <div class="pane"><div class="vcgrid">${part.map(u=>`<button class="vcc" data-a="prof" data-n="${esc(u)}">${av(u,0,1)}<span style="color:${rc(u)}">${esc(dnS(u))}${u===me?' (you)':''}</span></button>`).join('')||'<div class="empty">Nobody is in this voice channel yet.</div>'}</div>
   <div class="acts" style="justify-content:center">${here?'<button class="btn no" data-a="vcleave">Leave voice</button>':`<button class="btn" data-a="vcjoin" data-n="${id}">Join voice</button>`}</div>
   ${canPost(c)?'':'<p class="sub" style="text-align:center;margin-top:12px">You can listen here, but you don’t have permission to speak.</p>'}
   ${can('screen')?'':'<p class="sub" style="text-align:center">Screen sharing needs the “Share screen” permission.</p>'}</div></div>`;
@@ -867,7 +870,7 @@ function vcUI(){
   const p=document.getElementById('vcpanel'),bar=document.getElementById('vcbar');if(!p||!bar)return;
   if(!VC.ch){p.hidden=true;bar.innerHTML='';return}
   const c=chan(VC.ch)||{name:'voice'},part=vcPeople(VC.ch);p.hidden=false;
-  bar.innerHTML=`<div class="ct">🔊 <b>${esc(c.name)}</b> · ${part.length} connected</div><div class="vcp">${part.map(u=>`<span class="vcu">${av(u)}<span>${esc(u)}</span></span>`).join('')}</div><div class="ca">${VC.stream?`<button class="btn sec" data-v="mute">${VC.muted?'Unmute':'Mute'}</button>`:'<span class="sub">Listening only</span>'}<button class="btn sec" data-v="deaf">${VC.deaf?'Undeafen':'Deafen'}</button>${can('screen')&&navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-v="share">${VC.scr?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-v="leave">Leave</button></div>`;
+  bar.innerHTML=`<div class="ct">🔊 <b>${esc(c.name)}</b> · ${part.length} connected</div><div class="vcp">${part.map(u=>`<span class="vcu">${av(u)}<span>${esc(dnS(u))}</span></span>`).join('')}</div><div class="ca">${VC.stream?`<button class="btn sec" data-v="mute">${VC.muted?'Unmute':'Mute'}</button>`:'<span class="sub">Listening only</span>'}<button class="btn sec" data-v="deaf">${VC.deaf?'Undeafen':'Deafen'}</button>${can('screen')&&navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-v="share">${VC.scr?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-v="leave">Leave</button></div>`;
 }
 function vcStream(){
   if(VC.stream)return VC.stream;
@@ -912,9 +915,9 @@ function vcScreenIn(p,u,st){
   if(box){
     [...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove());
     const w=document.createElement('div');w.className='vcscr';w.dataset.p=p;
-    w.innerHTML=`<button class="btn sec" data-v="watch" data-p="${esc(p)}">Watch ${esc(u)}’s screen</button>`;box.appendChild(w);
+    w.innerHTML=`<button class="btn sec" data-v="watch" data-p="${esc(p)}">Watch ${esc(dnS(u))}’s screen</button>`;box.appendChild(w);
   }
-  screenOn('vc:'+p,st,u);
+  screenOn('vc:'+p,st,dnS(u));
 }
 function vcScreenOut(p){
   const box=document.getElementById('vcscreens');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove());
@@ -997,7 +1000,7 @@ function typSet(room,u){
 function typText(room){
   const l=Object.keys(TYP[room]||{}).filter(u=>TYP[room][u]>Date.now()&&u!==me&&getU(u)).sort();
   if(!l.length)return '';
-  const b=u=>`<b>${esc(u)}</b>`;
+  const b=u=>`<b>${esc(room.startsWith('ch:')?dnS(u):dn(u))}</b>`;
   return l.length===1?b(l[0])+' is typing…':l.length===2?b(l[0])+' and '+b(l[1])+' are typing…':l.length===3?b(l[0])+', '+b(l[1])+' and '+b(l[2])+' are typing…':'Several people are typing…';
 }
 function typUpdate(){const el=document.getElementById('typing');if(!el||!me)return;const r=typRoom();const h=r?typText(r):'';if(el.innerHTML!==h)el.innerHTML=h}
@@ -1015,12 +1018,12 @@ function msgsHtml(){
   const k=key(),srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));
   const all=msgsOf(k),by=new Map(all.map(x=>[x.id,x]));let list=all;if(nh)list=list.filter(m=>m.t>=SINCE);
   let prev=null,out='';
-  const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer,canRe=!srv||canPost(c);
+  const title=srv?'Welcome to #'+c.name:'Your chat with '+dn(v.peer),canRe=!srv||canPost(c);
   out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000||!!m.re;
     let rp='';
-    if(m.re){const o=by.get(m.re);rp=o?`<div class="reply" data-a="jump" data-id="${esc(o.id)}"><span class="ri">↱</span><b style="color:${rc(o.u)}">${esc(o.u)}</b> <span class="rs">${esc(snip(o))}</span></div>`:'<div class="reply"><span class="ri">↱</span><span class="rs">The original message was deleted or isn’t available.</span></div>'}
+    if(m.re){const o=by.get(m.re);rp=o?`<div class="reply" data-a="jump" data-id="${esc(o.id)}"><span class="ri">↱</span><b style="color:${rc(o.u)}">${esc(nm(o.u))}</b> <span class="rs">${esc(snip(o))}</span></div>`:'<div class="reply"><span class="ri">↱</span><span class="rs">The original message was deleted or isn’t available.</span></div>'}
     const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" data-k="${esc(k)}" data-t="${esc(m.vt||'video/mp4')}" controls preload="metadata"></video>`:''}`;
     const tl=(canRe?`<button data-a="reply" data-id="${esc(m.id)}" aria-label="Reply">Reply</button>`:'')+(m.u===me&&!m.poll?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
     const png=m.u!==me&&pingedMsg(m,me,by)?' ping':'';
@@ -1055,15 +1058,17 @@ function modalHtml(){
   const m=v.modal;if(!m)return '';let c='';
   if(m.t==='prof'){
     const n=m.n,t=getU(n);if(!t)return '';
-    const self=n===me,N=esc(n);let act='';
+    const self=n===me,N=esc(n),D=esc(nm(n));let act='';
     if(self)act=`<button class="btn sec" data-a="pickpic">Change picture</button>${safePic(t.pic)?'<button class="btn sec" data-a="rmpic">Remove picture</button>':''}<button class="btn no" data-a="del1">Delete account</button>`;
     else if(friendsOf(me).includes(n))act=`<button class="btn" data-a="pfmsg" data-n="${N}">Message</button><button class="btn no" data-a="pfunf" data-n="${N}">Remove friend</button>`;
     else if(incOf(me).includes(n))act=`<button class="btn" data-a="pfacc" data-n="${N}">Accept request</button><button class="btn no" data-a="pfrej" data-n="${N}">Decline</button>`;
     else if(outOf(me).includes(n))act=`<button class="btn sec" data-a="pfrej" data-n="${N}">Cancel request</button>`;
     else act=`<button class="btn" data-a="pfadd" data-n="${N}">Add friend</button>`;
+    {const g=self||can('nick'),sv=self?can('snick'):can('nick');
+     act=(g?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="global">${self?'Change nickname':'Manage nickname'}</button>`:'')+(sv?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="server">${self?'Change server nickname':'Manage server nickname'}</button>`:'')+act}
     const have=Array.isArray(t.roles)?t.roles:[];
     const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
-    c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${N}</div><div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
+    c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${D}</div>${nm(n)!==n?`<div class="sub" style="margin:-4px 0 6px;font-size:13px">@${N}</div>`:''}<div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
   }else if(m.t==='del1'){
     c=`<h2>Delete your account?</h2><p class="mp">Your profile, friendships and your messages on the Official server are deleted. Direct messages already saved on a friend’s device may stay there. This can’t be undone.</p><div class="acts"><button class="btn sec" data-a="mclose">Keep my account</button><button class="btn no" data-a="del2">Continue</button></div>`;
   }else if(m.t==='del2'){
@@ -1089,6 +1094,9 @@ function modalHtml(){
     c=`<h2>Create a poll</h2><input id="pq" placeholder="Ask a question" maxlength="200" value="${esc(d.q)}" aria-label="Question">${Array.from({length:m.n},(_,i)=>`<input id="po${i}" placeholder="Option ${i+1}" maxlength="80" value="${esc((d.o||[])[i]||'')}" aria-label="Option ${i+1}">`).join('')}<div class="acts" style="margin-top:6px">${m.n<6?'<button class="btn sec" data-a="polladd">Add option</button>':''}<label class="chk"><input type="checkbox" id="pmu" ${d.mu?'checked':''}> Allow multiple answers</label></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="pollgo">Create poll</button></div>`;
   }else if(m.t==='pic'){
     c=`<img class="big" src="${esc(iurl[m.id]||'')}" alt="Photo">`;
+  }else if(m.t==='nick'){
+    const t=getU(m.n);if(!t)return '';const sv=m.scope==='server',cur=sv?t.snick:t.nick;
+    c=`<h2>${sv?(m.n===me?'Change your server nickname':'Server nickname for '+esc(dn(m.n))):(m.n===me?'Change your nickname':'Nickname for '+esc(dn(m.n)))}</h2><p class="mp">${sv?'A server nickname is only shown inside the Official server (channels, members and voice). Everywhere else the regular nickname is used.':'Your nickname is shown instead of the username in chats. The username (<b>@'+esc(m.n)+'</b>) doesn’t change and is still used to sign in and for @mentions.'}</p><input id="nickin" value="${esc(m.draft??(cur||''))}" placeholder="${esc(sv?dn(m.n):m.n)}" maxlength="32" autocomplete="off" aria-label="${sv?'Server nickname':'Nickname'}"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button>${cur?'<button class="btn sec" data-a="nickreset">Reset</button>':''}<button class="btn" data-a="nicksave">Save</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -1122,13 +1130,13 @@ function render(){
   const du=fr.map(n=>({n,c:unreadDM(n)})).filter(x=>x.c>0),um=Object.fromEntries(du.map(x=>[x.n,x.c]));
   const pm=Object.fromEntries(chans().filter(x=>canSee(x)).map(x=>[x.id,pingCount('official:'+x.id)])),sp=Object.values(pm).reduce((a,b)=>a+b,0);
   UNR=du.reduce((a,x)=>a+x.c,0)+sp;document.title=(UNR?'('+UNR+') ':'')+'hrs chat';
-  const dmav=du.slice(0,6).map(x=>`<button class="ric dmav" data-a="dm" data-n="${esc(x.n)}" title="${esc(x.n)}" aria-label="Unread messages from ${esc(x.n)}">${av(x.n)}<span class="badge">${x.c>9?'9+':x.c}</span></button>`).join('');
+  const dmav=du.slice(0,6).map(x=>`<button class="ric dmav" data-a="dm" data-n="${esc(x.n)}" title="${esc(dn(x.n))}" aria-label="Unread messages from ${esc(dn(x.n))}">${av(x.n)}<span class="badge">${x.c>9?'9+':x.c}</span></button>`).join('');
   const rail=`<nav class="rail" aria-label="Servers">
     <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>${dmav}
     <div class="sep"></div>
     <button class="ric logo ${v.t==='server'?'on':''}" data-a="server" title="Official" aria-label="Official server">hrs${sp?`<span class="badge">${sp>9?'9+':sp}</span>`:''}</button><div class="nst"></div></nav>`;
   let side,main;
-  const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(me)}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
+  const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(nm(me))}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
   if(v.t==='server'){
     const c=v.ch?chan(v.ch):null,mem=users();
     side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
@@ -1136,15 +1144,15 @@ function render(){
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
     main=!c?`<div class="main"><div class="mhead">${burger()}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
-      <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
+      <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(dnS(n))}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
       <button class="item ${v.t==='home'?'on':''}" data-a="friends"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
       <div class="cap">Direct messages</div>
-      ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span>${um[n]?`<span class="badge" style="position:static;border:0;margin-left:auto">${um[n]}</span>`:''}</button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
+      ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(dn(n))}</span>${um[n]?`<span class="badge" style="position:static;border:0;margin-left:auto">${um[n]}</span>`:''}</button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
       </div>${meBar}</div>`;
     if(v.t==='dm'){
-      main=`<div class="main"><div class="mhead">${burger()}<span class="hash">@</span>${nameTag(v.peer)}<span class="tools"><button class="tab" data-a="call" data-n="${esc(v.peer)}">📞 Call</button></span></div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false,replyBar())}</div></div></div>`;
+      main=`<div class="main"><div class="mhead">${burger()}<span class="hash">@</span>${nameTag(v.peer)}<span class="tools"><button class="tab" data-a="call" data-n="${esc(v.peer)}">📞 Call</button></span></div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(dn(v.peer)),false,false,replyBar())}</div></div></div>`;
     }else{
       let pane='';
       if(v.tab==='add'){
@@ -1153,10 +1161,10 @@ function render(){
         ${v.note?`<div class="note ${v.note[0]}">${esc(v.note[1])}</div>`:''}`;
       }else if(v.tab==='pending'){
         const rows=[...inc.map(n=>({n,i:1})),...out.map(n=>({n,i:0}))];
-        pane=`<h3>Pending — ${rows.length}</h3>`+(rows.length?rows.map(r=>`<div class="row">${av(r.n,1)}<div class="nm">${esc(r.n)}<span class="sub">${r.i?'Incoming request':'Outgoing request'}</span></div>
+        pane=`<h3>Pending — ${rows.length}</h3>`+(rows.length?rows.map(r=>`<div class="row">${av(r.n,1)}<div class="nm">${esc(dn(r.n))}<span class="sub">${r.i?'Incoming request':'Outgoing request'}</span></div>
           ${r.i?`<button class="btn" data-a="acc" data-n="${esc(r.n)}">Accept</button>`:''}<button class="btn no" data-a="rej" data-n="${esc(r.n)}">${r.i?'Decline':'Cancel'}</button></div>`).join(''):'<div class="empty">No pending requests.</div>');
       }else{
-        pane=`<h3>All friends — ${fr.length}</h3>`+(fr.length?fr.map(n=>`<div class="row">${av(n,1)}<div class="nm">${esc(n)}</div>
+        pane=`<h3>All friends — ${fr.length}</h3>`+(fr.length?fr.map(n=>`<div class="row">${av(n,1)}<div class="nm">${esc(dn(n))}</div>
           <button class="btn" data-a="dm" data-n="${esc(n)}">Message</button><button class="btn no" data-a="unf" data-n="${esc(n)}">Remove</button></div>`).join(''):'<div class="empty">No friends yet. Use Add Friend to send a request.</div>');
       }
       main=`<div class="main"><div class="mhead">${burger()}<span style="font-size:20px">☺</span>Friends
@@ -1202,6 +1210,15 @@ function doDelChan(id){
   db.ch[id].del=1;bump(db.ch[id]);if(v.ch===id)v.ch=chans()[0].id;changed();
 }
 function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;const im=m.img,bn=m.bn,vv=m.v;if(vv)delBlob(vv).catch(()=>{});tomb(m);changed();if(im)imgGone(im,bn);if(vv)clearBlobs(vv,bn)}
+function setNick(target,raw,scope){
+  const sv=scope==='server';
+  if(sv?(target===me?!can('snick'):!can('nick')):(target!==me&&!can('nick')))return sv&&target===me?'You don’t have permission to set a server nickname.':'You don’t have permission to change other people’s nicknames.';
+  const t=getU(target);if(!t)return 'That account no longer exists.';
+  const nick=Array.from(String(raw).replace(/[\u0000-\u001f\u007f]/g,'').replace(/\s+/g,' ').trim()).slice(0,32).join(''),f=sv?'snick':'nick';
+  if(nick&&nick.toLowerCase()!==target&&users().includes(nick.toLowerCase()))return 'That’s another person’s username. Choose a different nickname.';
+  if(nick)t[f]=nick;else delete t[f];
+  bump(t);changed();return '';
+}
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;bump(r);changed()}}
 async function sendVideo(f){
   if(!can('video')||v.t!=='server')return;
@@ -1251,6 +1268,9 @@ root.addEventListener('click',e=>{
   if(a==='pickpic')return document.getElementById('picin').click();
   if(a==='attachimg')return document.getElementById('imgin').click();
   if(a==='call')return startCall(n);
+  if(a==='nickedit'){const sc=b.dataset.sc==='server'?'server':'global';if(sc==='server'?(n===me?!can('snick'):!can('nick')):(n!==me&&!can('nick')))return;v.modal={t:'nick',n,scope:sc};return render()}
+  if(a==='nicksave'){const er=setNick(v.modal.n,document.getElementById('nickin').value,v.modal.scope);if(er){document.getElementById('cerr').textContent=er;return}v.modal=null;return render()}
+  if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope);v.modal=null;return render()}
   if(a==='vcjoin')return vcJoin(n);
   if(a==='vcleave')return vcLeave();
   if(a==='rcancel'){v.reply=null;return render()}
@@ -1344,6 +1364,7 @@ root.addEventListener('keydown',e=>{
   else if(id==='delname'){e.preventDefault();document.getElementById('delpw').focus()}
   else if(id==='delpw'){e.preventDefault();delAccount()}
   else if(id==='medit'){e.preventDefault();document.querySelector('[data-a=mesave]').click()}
+  else if(id==='nickin'){e.preventDefault();document.querySelector('[data-a=nicksave]').click()}
   else if(id==='chn'){e.preventDefault();document.querySelector('[data-a=chgo]').click()}
   else if(id==='rname'){e.preventDefault();document.querySelector('[data-a=rnew]').click()}
   else if(id==='msgin'){if(matchMedia('(hover:none)').matches)return;e.preventDefault();if(send(e.target.value))e.target.value='';render()}
