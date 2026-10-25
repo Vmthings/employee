@@ -60,7 +60,7 @@ html,body,#root{width:100%;height:100%;overflow:hidden}
 .msg .av{width:40px;height:40px;font-size:16px}
 .msg .who{font-weight:600;color:#fff}
 .msg .ts{font-size:12px;color:var(--muted);margin-left:8px}
-.msg .tx{white-space:pre-wrap;overflow-wrap:anywhere}
+.msg .tx{white-space:normal;overflow-wrap:anywhere}
 .intro{padding:16px;margin-top:auto}
 .intro h2{margin:8px 0 4px;font-size:28px}
 .intro p{margin:0;color:var(--muted)}
@@ -147,7 +147,7 @@ html,body,#root{width:100%;height:100%;overflow:hidden}
 .pane{padding:12px}
 .msg{padding-left:12px;padding-right:12px}
 .mhead{padding:0 12px}
-input{font-size:16px}
+input,textarea{font-size:16px}
 .btn{padding:10px 14px}
 .row{flex-wrap:wrap}
 }
@@ -155,6 +155,26 @@ input{font-size:16px}
 .mbox .sub{display:block;font-size:12px;color:var(--muted);margin:6px 0}
 .rr{border-top:1px solid #3f4147;padding:10px 0}
 .slowbar{font-size:12px;color:var(--muted);padding:0 4px 6px}.slowbar:empty{display:none}
+.composer textarea{flex:1;min-width:0;width:100%;background:none;border:0;padding:12px 16px;resize:none;max-height:200px;line-height:1.4;font:inherit;color:inherit;display:block}
+.composer textarea::placeholder{color:var(--muted)}
+.sendbtn{display:none;width:44px;height:44px;font-size:18px;color:var(--blurple);flex:none}
+@media(hover:none){.sendbtn{display:block}}
+.mbox>textarea{width:100%;background:var(--dark);border:0;border-radius:4px;padding:10px;margin:4px 0;resize:vertical;min-height:80px;font:inherit;color:inherit}
+.tx a{color:#00a8fc;text-decoration:none}.tx a:hover{text-decoration:underline}
+.tx code.ic{background:#1e1f22;border-radius:4px;padding:1px 5px;font:13px/1.4 ui-monospace,Consolas,monospace}
+.tx pre.cb{background:#2b2d31;border:1px solid #1e1f22;border-radius:6px;padding:8px 10px;margin:4px 0;overflow-x:auto;max-width:min(560px,100%)}
+.tx pre.cb code{font:13px/1.4 ui-monospace,Consolas,monospace;white-space:pre}
+.tx blockquote{margin:2px 0;padding:0 0 0 12px;border-left:4px solid #4e5058}
+.tx .mh{font-weight:700;margin:6px 0 2px}.tx .h1{font-size:1.5em}.tx .h2{font-size:1.25em}.tx .h3{font-size:1.1em}
+.tx .msub{font-size:12px;color:var(--muted)}
+.tx ul,.tx ol{margin:2px 0;padding-left:24px}
+.tx .spoiler{background:#1e1f22;color:transparent;border-radius:4px;cursor:pointer;padding:0 2px}.tx .spoiler.on{background:#3f4147;color:inherit}
+.tx .spoiler:not(.on) *{visibility:hidden}
+.tx .mention{background:rgba(88,101,242,.3);color:#c9cdfb;border-radius:3px;padding:0 2px}
+.emb-img{display:block;max-width:min(400px,100%);max-height:300px;border-radius:8px;margin-top:4px}
+.emb-yt{display:block;width:min(420px,100%);aspect-ratio:16/9;border:0;border-radius:8px;margin-top:4px;background:#000}
+.emb-card{display:block;max-width:min(420px,100%);margin-top:4px;padding:8px 12px;border-left:4px solid var(--blurple);background:#2b2d31;border-radius:4px;color:var(--text)!important}
+.emb-card .h{font-weight:600;color:#00a8fc}.emb-card .u{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -475,13 +495,65 @@ function fmt(ts){
 }
 
 /* ---------- views ---------- */
+/* ---------- Discord-style markdown + link embeds ---------- */
+const link=(u,t)=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer nofollow">${esc(t)}</a>`;
+function md(src){
+  const K=[],H=h=>'\u0000'+(K.push(h)-1)+'\u0000';
+  let t=String(src).replace(/\u0000/g,'');
+  t=t.replace(/```(?:[\w+-]{1,20}\n)?([\s\S]*?)```/g,(m,c)=>H(`<pre class="cb"><code>${esc(c.replace(/^\n+|\n+$/g,''))}</code></pre>`));
+  t=t.replace(/``([^`]+)``|`([^`\n]+)`/g,(m,a,b)=>H(`<code class="ic">${esc((a||b).trim())}</code>`));
+  t=t.replace(/\[([^\]\n]{1,100})\]\((https?:\/\/[^\s)]{1,500})\)/g,(m,x,u)=>H(link(u,x)));
+  t=t.replace(/<(https?:\/\/[^\s>]{1,500})>|(https?:\/\/[^\s<]{1,500}[^\s<.,;:!?)\]'"])/g,(m,a,b)=>{const u=a||b;return H(link(u,u))});
+  t=t.replace(/\\([\\*_~|`>#\[\]()-])/g,(m,c)=>H(esc(c)));
+  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>getU(n)?p+H(`<span class="mention">@${esc(n)}</span>`):m);
+  t=esc(t);
+  const inl=x=>x
+    .replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/__(.+?)__/g,'<u>$1</u>')
+    .replace(/~~(.+?)~~/g,'<s>$1</s>')
+    .replace(/\|\|(.+?)\|\|/g,'<span class="spoiler" data-a="spoil" tabindex="0" role="button">$1</span>')
+    .replace(/\*(?!\s)(.+?)\*/g,'<i>$1</i>')
+    .replace(/(^|[^\w])_(?!\s)(.+?)_(?!\w)/g,'$1<i>$2</i>');
+  const L=t.split('\n'),out=[];let plain=false,m;
+  for(let i=0;i<L.length;i++){
+    const l=L[i];
+    if(/^&gt;&gt;&gt; /.test(l)){out.push(`<blockquote>${L.slice(i).map((x,j)=>inl(j?x:x.replace(/^&gt;&gt;&gt; /,''))).join('<br>')}</blockquote>`);plain=false;break}
+    if(/^&gt; /.test(l)){const q=[];while(i<L.length&&/^&gt; /.test(L[i]))q.push(inl(L[i++].replace(/^&gt; /,'')));i--;out.push(`<blockquote>${q.join('<br>')}</blockquote>`);plain=false;continue}
+    if(m=l.match(/^(#{1,3}) (.+)$/)){out.push(`<div class="mh h${m[1].length}">${inl(m[2])}</div>`);plain=false;continue}
+    if(m=l.match(/^-# (.+)$/)){out.push(`<div class="msub">${inl(m[1])}</div>`);plain=false;continue}
+    if(/^[-*] /.test(l)){const q=[];while(i<L.length&&/^[-*] /.test(L[i]))q.push(`<li>${inl(L[i++].slice(2))}</li>`);i--;out.push(`<ul>${q.join('')}</ul>`);plain=false;continue}
+    if(/^\d{1,3}\. /.test(l)){const st=parseInt(l),q=[];while(i<L.length&&/^\d{1,3}\. /.test(L[i]))q.push(`<li>${inl(L[i++].replace(/^\d{1,3}\. /,''))}</li>`);i--;out.push(`<ol start="${st}">${q.join('')}</ol>`);plain=false;continue}
+    out.push((plain?'<br>':'')+inl(l));plain=true;
+  }
+  return out.join('').replace(/\u0000(\d+)\u0000/g,(m,n)=>K[+n]);
+}
+function embedsOf(x){
+  const t=x.replace(/```[\s\S]*?```/g,' ').replace(/`[^`\n]*`/g,' ').replace(/<https?:\/\/[^\s>]+>/g,' ');
+  const seen=new Set(),out=[];
+  for(const mt of t.matchAll(/https?:\/\/[^\s<]{1,500}[^\s<.,;:!?)\]'"]/g)){
+    const u=mt[0];if(seen.has(u)||out.length>=3)continue;seen.add(u);
+    let url;try{url=new URL(u)}catch(e){continue}
+    const h=url.hostname.replace(/^www\./,''),path=url.pathname,eu=esc(u);
+    let yt=null;
+    if(h==='youtu.be')yt=path.slice(1,12);
+    else if(/^(m\.|music\.)?youtube\.com$/.test(h))yt=url.searchParams.get('v')||(path.match(/^\/(?:shorts|embed|live)\/([\w-]{11})/)||[])[1];
+    if(yt&&/^[\w-]{11}$/.test(yt))out.push(`<iframe class="emb-yt" src="https://www.youtube-nocookie.com/embed/${yt}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" title="YouTube video"></iframe>`);
+    else if(/\.(png|jpe?g|gif|webp|avif)$/i.test(path))out.push(`<a href="${eu}" target="_blank" rel="noopener noreferrer nofollow"><img class="emb-img" loading="lazy" referrerpolicy="no-referrer" src="${eu}" alt=""></a>`);
+    else if(/\.(mp4|webm|mov|m4v|ogv)$/i.test(path))out.push(`<video class="vid" controls preload="metadata" playsinline src="${eu}"></video>`);
+    else out.push(`<a class="emb-card" href="${eu}" target="_blank" rel="noopener noreferrer nofollow"><div class="h">${esc(h)}</div><div class="u">${eu}</div></a>`);
+  }
+  return out.join('');
+}
+const grow=el=>{el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px'};
+
 function msgsHtml(){
   const srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));let list=msgsOf(key());if(nh)list=list.filter(m=>m.t>=SINCE);let prev=null,out='';
   const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer;
   out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
-    const body=`<div class="tx">${m.x?esc(m.x):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const body=`<div class="tx">${m.x?md(m.x):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
     const tl=(m.u===me?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
     out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
       :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
@@ -489,7 +561,8 @@ function msgsHtml(){
   });
   return out;
 }
-function hydrate(){document.querySelectorAll('video[data-vid]').forEach(async el=>{
+function hydrate(){
+  document.querySelectorAll('img.emb-img').forEach(i=>{i.onerror=()=>{const p=document.createElement('div');p.className='sub';p.textContent='Image couldn’t be loaded.';i.replaceWith(p)}});document.querySelectorAll('video[data-vid]').forEach(async el=>{
   const id=el.dataset.vid;
   try{
     if(!vurl[id]){
@@ -501,8 +574,8 @@ function hydrate(){document.querySelectorAll('video[data-vid]').forEach(async el
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
 })}
 function composer(ph,lock,att,top){
-  return `<form class="composer" data-a="send">${top||''}<div class="cbox">${lock?'<input id="msgin" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message">'
-  :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<input id="msgin" placeholder="${ph}" autocomplete="off" maxlength="2000" aria-label="Message">`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
+  return `<form class="composer" data-a="send">${top||''}<div class="cbox">${lock?'<textarea id="msgin" rows="1" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message"></textarea>'
+  :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<textarea id="msgin" rows="1" placeholder="${ph}" maxlength="2000" aria-label="Message"></textarea><button type="submit" class="sendbtn" aria-label="Send message">➤</button>`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
 }
 function modalHtml(){
   const m=v.modal;if(!m)return '';let c='';
@@ -536,7 +609,7 @@ function modalHtml(){
     c=`<h2>${add?'Create channel':'Channel settings'}</h2><p class="mp">Channel names can use lowercase letters, numbers, dashes, underscores and emojis.</p><input id="chn" value="${esc(m.draft??cur)}" placeholder="channel-name 🎮" maxlength="60" autocomplete="off" aria-label="Channel name"><div id="cerr" class="note er"></div>${extra}<div class="acts"><button class="btn sec" data-a="mclose">${add?'Cancel':'Close'}</button><button class="btn" data-a="chgo">${add?'Create channel':'Save name'}</button></div>`;
   }else if(m.t==='medit'){
     const x=(db.msgs[m.k]||[]).find(q=>q.id===m.id);
-    c=`<h2>Edit message</h2><input id="medit" value="${esc(m.draft??(x?x.x:''))}" maxlength="2000" autocomplete="off" aria-label="Message text"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="mesave">Save</button></div>`;
+    c=`<h2>Edit message</h2><textarea id="medit" maxlength="2000" aria-label="Message text">${esc(m.draft??(x?x.x:''))}</textarea><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="mesave">Save</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -551,7 +624,7 @@ function ctxHtml(){
 }
 
 function render(){
-  const act=document.activeElement,typed=act&&act.tagName==='INPUT'&&['text','password'].includes(act.type)?{id:act.id,val:act.value}:null;
+  const act=document.activeElement,typed=act&&(act.tagName==='TEXTAREA'||(act.tagName==='INPUT'&&['text','password'].includes(act.type)))?{id:act.id,val:act.value}:null;
   const m0=document.getElementById('msgs'),stick=!m0||m0.scrollHeight-m0.scrollTop-m0.clientHeight<80,top0=m0?m0.scrollTop:0;
   if(me&&!getU(me)){me=null;stopSelf()}
   if(!me){
@@ -559,7 +632,7 @@ function render(){
     <input id="uname" placeholder="Username" maxlength="20" autocomplete="username" aria-label="Username" autofocus>
     <input id="pw" type="password" placeholder="Password (4+ characters)" maxlength="100" autocomplete="current-password" aria-label="Password">
     <button class="btn" data-a="login">Continue</button><div id="lerr" class="note er" style="margin-top:8px"></div><div class="nst" style="margin-top:12px"></div><div id="lhint" class="note" style="color:var(--muted);font-size:13px"></div></div></div>`;
-    if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
+    if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus();if(el.tagName==='TEXTAREA')grow(el)}}
     status();return;
   }
   if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
@@ -610,7 +683,7 @@ function render(){
   root.innerHTML=`<div id="app"><div class="nav${v.nav?' open':''}">${rail}${side}</div><div class="scrim" data-a="navx"></div>${main}</div>${modalHtml()}${ctxHtml()}`;
   const m=document.getElementById('msgs');if(m)m.scrollTop=stick?m.scrollHeight:top0;
   hydrate();status();
-  if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus()}}
+  if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus();if(el.tagName==='TEXTAREA')grow(el)}}
   else if(v.modal){const i=document.querySelector('.modal input:not([type=file]):not([type=color])');if(i)i.focus()}
   else if(v.tab==='add'&&v.t==='home'){const f=document.getElementById('friendin');if(f)f.focus()}
   else{const i=document.getElementById('msgin');if(i&&!i.disabled)i.focus()}
@@ -684,6 +757,7 @@ root.addEventListener('click',e=>{
   if(e.target.classList.contains('modal')){v.modal=null;return render()}
   const b=e.target.closest('[data-a]');if(!b||b.tagName==='FORM')return;
   const a=b.dataset.a,n=b.dataset.n;
+  if(a==='spoil'){b.classList.toggle('on');return}
   if(a==='login')return doLogin();
   if(a==='logout')return signOut();
   if(a==='attach')return document.getElementById('vidin').click();
@@ -739,6 +813,7 @@ root.addEventListener('submit',e=>{
   if(f.dataset.a==='send'){const i=document.getElementById('msgin');if(send(i.value))i.value='';render()}
   else if(f.dataset.a==='addf'){addFriend(document.getElementById('friendin').value);render()}
 });
+root.addEventListener('input',e=>{if(e.target.id==='msgin')grow(e.target)});
 root.addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   if(e.target.id==='vidin'){sendVideo(f);e.target.value='';return}
@@ -769,7 +844,7 @@ root.addEventListener('keydown',e=>{
   else if(id==='medit'){e.preventDefault();document.querySelector('[data-a=mesave]').click()}
   else if(id==='chn'){e.preventDefault();document.querySelector('[data-a=chgo]').click()}
   else if(id==='rname'){e.preventDefault();document.querySelector('[data-a=rnew]').click()}
-  else if(id==='msgin'){e.preventDefault();if(send(e.target.value))e.target.value='';render()}
+  else if(id==='msgin'){if(matchMedia('(hover:none)').matches)return;e.preventDefault();if(send(e.target.value))e.target.value='';render()}
   else if(id==='friendin'){e.preventDefault();addFriend(e.target.value);render()}
 });
 
