@@ -212,6 +212,11 @@ input,textarea{font-size:16px}
 .vcc{display:flex;flex-direction:column;align-items:center;gap:8px;width:120px;padding:14px 8px;background:#2b2d31;border-radius:10px}.vcc:hover{background:var(--hover)}
 .vcpanel .vcp{display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:8px}.vcpanel .sub{font-size:12px;color:var(--muted)}
 .vcscr{margin-top:8px}.vcscr video{display:block;width:100%;max-height:45vh;border-radius:6px;background:#000;cursor:zoom-in}
+.screenview{position:fixed;inset:0;z-index:30;background:#000;display:flex;flex-direction:column}
+.screenview[hidden]{display:none}
+.screenview video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+.svbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(17,18,20,.94);color:#fff}
+.svbtns{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -219,6 +224,7 @@ input,textarea{font-size:16px}
 <input type="file" id="imgin" accept="image/*" hidden>
 <input type="file" id="vidin" accept="video/*" hidden>
 <input type="file" id="picin" accept="image/*" hidden>
+<div id="screenview" class="screenview" hidden><video id="sv" autoplay playsinline></video><div class="svbar"><span id="svcap"></span><div id="svbtns" class="svbtns"></div></div></div>
 <div id="vcpanel" class="callpanel vcpanel" hidden><div id="vcbar"></div><div id="vcscreens"></div><div id="vcaudio"></div></div>
 <div id="callpanel" class="callpanel" hidden><div id="callbar"></div><video id="rscreen" class="rscreen" autoplay playsinline hidden></video><audio id="raudio" autoplay></audio></div>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -733,7 +739,7 @@ function callUI(){
   p.hidden=false;const N=esc(CALL.peer||'');
   if(CALL.st==='out')bar.innerHTML=`<div class="ct">📞 Calling <b>${N}</b>…</div><div class="ca"><button class="btn no" data-c="hang">Cancel</button></div>`;
   else if(CALL.st==='in')bar.innerHTML=`<div class="ct">📞 <b>${N}</b> is calling you</div><div class="ca"><button class="btn" style="background:var(--green)" data-c="accept">Accept</button><button class="btn no" data-c="hang">Decline</button></div>`;
-  else bar.innerHTML=`<div class="ct">🎙 In call with <b>${N}</b> · <span id="ctime">0:00</span></div><div class="ca"><button class="btn sec" data-c="mute">${CALL.muted?'Unmute':'Mute'}</button>${navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-c="share">${CALL.screen?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-c="hang">Hang up</button></div>`;
+  else bar.innerHTML=`<div class="ct">🎙 In call with <b>${N}</b> · <span id="ctime">0:00</span></div><div class="ca">${SCR.dm?'<button class="btn sec" data-c="watch">Watch screen</button>':''}<button class="btn sec" data-c="mute">${CALL.muted?'Unmute':'Mute'}</button>${navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-c="share">${CALL.screen?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-c="hang">Hang up</button></div>`;
 }
 const micOpts={audio:{echoCancellation:true,noiseSuppression:true}};
 function playRemote(rs){const a=document.getElementById('raudio');if(a){a.srcObject=rs;a.play().catch(()=>{})}}
@@ -742,7 +748,7 @@ function endCall(){
   for(const c of [CALL.call,CALL.inc,CALL.screenCall,...CALL.pend])try{c&&c.close()}catch(e){}
   for(const st of [CALL.stream,CALL.screen])try{st&&st.getTracks().forEach(t=>t.stop())}catch(e){}
   const a=document.getElementById('raudio');if(a)a.srcObject=null;
-  const sv=document.getElementById('rscreen');if(sv){sv.srcObject=null;sv.hidden=true}
+  screenOff('dm');
   Object.assign(CALL,{st:'idle',peer:null,call:null,pend:[],inc:null,stream:null,screen:null,screenCall:null,muted:false,tm:null});
   callUI();
 }
@@ -771,8 +777,8 @@ function onCall(call){
   if(md.kind==='screen'){
     if(CALL.st==='active'&&CALL.peer===from){
       call.answer();
-      call.on('stream',st=>{const sv=document.getElementById('rscreen');if(sv){sv.srcObject=st;sv.hidden=false;sv.play().catch(()=>{})}});
-      call.on('close',()=>{const sv=document.getElementById('rscreen');if(sv){sv.srcObject=null;sv.hidden=true}});
+      call.on('stream',st=>{screenOn('dm',st,from);callUI()});
+      call.on('close',()=>{screenOff('dm');callUI()});
     }else try{call.close()}catch(e){}
     return;
   }
@@ -805,8 +811,44 @@ const callPanelEl=document.getElementById('callpanel');if(callPanelEl)callPanelE
   else if(a==='accept')acceptCall();
   else if(a==='mute'&&CALL.stream){CALL.muted=!CALL.muted;CALL.stream.getAudioTracks().forEach(t=>t.enabled=!CALL.muted);callUI()}
   else if(a==='share')toggleShare();
+  else if(a==='watch')screenShow('dm');
 });
 setInterval(()=>{const el=document.getElementById('ctime');if(el&&CALL.st==='active'){const sec=Math.floor((Date.now()-CALL.t0)/1000);el.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}},1000);
+
+/* ---------- shared screens open full-window ---------- */
+const SCR={};let SVK=null;
+function svBtns(){
+  const b=document.getElementById('svbtns');if(!b)return;
+  const dm=SVK==='dm',st=dm?CALL.stream:VC.stream,m=dm?CALL.muted:VC.muted;
+  b.innerHTML=`<button class="btn sec" data-s="min">Minimize</button><button class="btn sec" data-s="fs">Full screen</button>${st?`<button class="btn sec" data-s="mute">${m?'Unmute':'Mute'}</button>`:''}<button class="btn no" data-s="end">${dm?'Hang up':'Leave voice'}</button>`;
+}
+function screenShow(k){
+  const x=SCR[k],o=document.getElementById('screenview'),sv=document.getElementById('sv');if(!x||!o||!sv)return;
+  SVK=k;sv.srcObject=x.st;try{sv.play().catch(()=>{})}catch(e){}
+  document.getElementById('svcap').textContent=x.label+' is sharing their screen';
+  o.hidden=false;svBtns();
+  try{const f=o.requestFullscreen||o.webkitRequestFullscreen;if(f&&!document.fullscreenElement){const r=f.call(o);if(r&&r.catch)r.catch(()=>{})}}catch(e){}
+}
+function screenOn(k,st,label){SCR[k]={st,label};screenShow(k)}
+function screenOff(k){
+  delete SCR[k];if(SVK!==k)return;
+  const next=Object.keys(SCR)[0];if(next)return screenShow(next);
+  SVK=null;const o=document.getElementById('screenview'),sv=document.getElementById('sv');
+  if(sv)sv.srcObject=null;if(o)o.hidden=true;
+  try{if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{})}catch(e){}
+}
+const svEl=document.getElementById('screenview');
+if(svEl)svEl.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-s]');if(!b)return;const a=b.dataset.s,dm=SVK==='dm';
+  if(a==='min'){svEl.hidden=true;try{if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{})}catch(x){}}
+  else if(a==='fs'){const f=svEl.requestFullscreen||svEl.webkitRequestFullscreen;if(f)f.call(svEl)}
+  else if(a==='mute'){
+    if(dm&&CALL.stream){CALL.muted=!CALL.muted;CALL.stream.getAudioTracks().forEach(t=>t.enabled=!CALL.muted);callUI()}
+    else if(!dm&&VC.stream){VC.muted=!VC.muted;VC.stream.getAudioTracks().forEach(t=>t.enabled=!VC.muted);vcUI()}
+    svBtns();
+  }
+  else if(a==='end'){if(dm)endCall();else vcLeave()}
+});
 
 /* ---------- voice channels (group voice + screen share, peer-to-peer mesh) ---------- */
 const VC={ch:null,stream:null,calls:{},scr:null,scrCalls:{},muted:false,deaf:false,hb:null,dummy:null};
@@ -866,13 +908,18 @@ function vcDrop(u){
   const box=document.getElementById('vcaudio');if(box)[...box.children].filter(a=>VC.calls[a.dataset.p]===undefined).forEach(a=>a.remove());
 }
 function vcScreenIn(p,u,st){
-  const box=document.getElementById('vcscreens');if(!box)return;
-  let w=[...box.children].find(x=>x.dataset.p===p);if(w)w.remove();
-  w=document.createElement('div');w.className='vcscr';w.dataset.p=p;
-  const vid=document.createElement('video');vid.autoplay=true;vid.playsInline=true;vid.srcObject=st;w.appendChild(vid);
-  const cap=document.createElement('div');cap.className='sub';cap.textContent=u+' is sharing their screen';w.appendChild(cap);box.appendChild(w);vid.play().catch(()=>{});
+  const box=document.getElementById('vcscreens');
+  if(box){
+    [...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove());
+    const w=document.createElement('div');w.className='vcscr';w.dataset.p=p;
+    w.innerHTML=`<button class="btn sec" data-v="watch" data-p="${esc(p)}">Watch ${esc(u)}’s screen</button>`;box.appendChild(w);
+  }
+  screenOn('vc:'+p,st,u);
 }
-function vcScreenOut(p){const box=document.getElementById('vcscreens');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove())}
+function vcScreenOut(p){
+  const box=document.getElementById('vcscreens');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove());
+  screenOff('vc:'+p);
+}
 function vcOnCall(call){
   const md=call.metadata||{},from=md.from,ch=md.ch,c=chan(ch);
   const ok=VC.ch&&ch===VC.ch&&typeof from==='string'&&from!==me&&getU(from)&&[0,1,2,3].some(s=>call.peer===pid(from,s))&&c&&c.vc&&canSee(c);
@@ -916,6 +963,7 @@ function vcLeave(){
   try{VC.stream&&VC.stream.getTracks().forEach(t=>t.stop())}catch(e){}
   for(const id of ['vcaudio','vcscreens']){const b=document.getElementById(id);if(b)b.innerHTML=''}
   if(VCP[ch])delete VCP[ch][me];
+  Object.keys(SCR).filter(k=>k.startsWith('vc:')).forEach(screenOff);
   Object.assign(VC,{ch:null,stream:null,calls:{},scr:null,scrCalls:{},muted:false,deaf:false,hb:null});
   vcUI();render();
 }
@@ -928,6 +976,7 @@ if(vcPanelEl)vcPanelEl.addEventListener('click',e=>{
   else if(a==='mute'&&VC.stream){VC.muted=!VC.muted;VC.stream.getAudioTracks().forEach(t=>t.enabled=!VC.muted);vcUI()}
   else if(a==='deaf'){VC.deaf=!VC.deaf;document.querySelectorAll('#vcaudio audio').forEach(x=>x.muted=VC.deaf);vcUI()}
   else if(a==='share')vcShare();
+  else if(a==='watch')screenShow('vc:'+b.dataset.p);
 });
 setInterval(()=>{
   let ch=false;const t=Date.now();
