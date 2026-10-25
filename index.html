@@ -207,6 +207,11 @@ input,textarea{font-size:16px}
 .rscreen{display:block;width:100%;max-height:50vh;margin-top:8px;border-radius:6px;background:#000;cursor:zoom-in}
 .rscreen[hidden]{display:none}
 @media(max-width:760px){.callpanel{left:12px;right:12px;bottom:84px;width:auto}}
+.vcl{padding:0 0 4px 30px}.vcu{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:13px;color:var(--muted)}.vcu .av{width:20px;height:20px;font-size:11px}
+.vcgrid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:24px 0}
+.vcc{display:flex;flex-direction:column;align-items:center;gap:8px;width:120px;padding:14px 8px;background:#2b2d31;border-radius:10px}.vcc:hover{background:var(--hover)}
+.vcpanel .vcp{display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:8px}.vcpanel .sub{font-size:12px;color:var(--muted)}
+.vcscr{margin-top:8px}.vcscr video{display:block;width:100%;max-height:45vh;border-radius:6px;background:#000;cursor:zoom-in}
 </style>
 </head>
 <body>
@@ -214,6 +219,7 @@ input,textarea{font-size:16px}
 <input type="file" id="imgin" accept="image/*" hidden>
 <input type="file" id="vidin" accept="video/*" hidden>
 <input type="file" id="picin" accept="image/*" hidden>
+<div id="vcpanel" class="callpanel vcpanel" hidden><div id="vcbar"></div><div id="vcscreens"></div><div id="vcaudio"></div></div>
 <div id="callpanel" class="callpanel" hidden><div id="callbar"></div><video id="rscreen" class="rscreen" autoplay playsinline hidden></video><audio id="raudio" autoplay></audio></div>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -254,7 +260,7 @@ const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
 const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
 function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
 function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
@@ -495,7 +501,7 @@ async function mqInit(){
   MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
   for(const url of BROKERS){
     const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
-    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubBlob(id,k));status()},2500)});
+    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+',MQ.ns+'/vc/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubBlob(id,k));status()},2500)});
     c.on('message',async(t,buf)=>{try{
       const p=t.split('/');
       if(p[2]==='blob'){
@@ -507,6 +513,7 @@ async function mqInit(){
         return;
       }
       const txt=new TextDecoder().decode(buf);
+      if(p[2]==='vc'){const o=await mqDec(txt);if(o&&typeof o.u==='string'&&typeof o.p==='string'&&p[3])vcSeen(p[3],o.u,o.p,o.a);return}
       if(p[2]==='typing'){
         let room,key;
         if(p[3]==='ch'&&p[4]){room='ch:'+p[4];key=MQ.key}
@@ -523,7 +530,7 @@ async function mqInit(){
 }
 
 /* ---------- accounts, friends, messages ---------- */
-function signOut(){endCall();me=null;stopSelf();try{localStorage.removeItem('hrs_me')}catch(e){}v.modal=null;v.ctx=null;render()}
+function signOut(){endCall();vcLeave();me=null;stopSelf();try{localStorage.removeItem('hrs_me')}catch(e){}v.modal=null;v.ctx=null;render()}
 async function signIn(name,pw){
   name=name.trim().toLowerCase();
   if(!/^[a-z0-9._-]{2,20}$/.test(name))return 'Use 2–20 letters, numbers, dots, dashes or underscores for the username.';
@@ -740,6 +747,7 @@ function endCall(){
   callUI();
 }
 async function startCall(peer){
+  if(VC.ch)return notice('You’re in a voice channel','Leave the voice channel before starting a call.');
   if(CALL.st!=='idle')return notice('Already in a call','Hang up before starting another call.');
   if(!me||!friendsOf(me).includes(peer))return;
   if(!NET.sp||!NET.sp.open)return notice('Calls unavailable','Your connection isn’t ready yet. Try again in a few seconds.');
@@ -758,6 +766,7 @@ async function startCall(peer){
 }
 function onCall(call){
   const md=call.metadata||{},from=md.from;
+  if(md.kind==='vc'||md.kind==='vcscreen')return vcOnCall(call);
   if(!me||typeof from!=='string'||!friendsOf(me).includes(from)||![0,1,2,3].some(s=>call.peer===pid(from,s))){try{call.close()}catch(e){}return}
   if(md.kind==='screen'){
     if(CALL.st==='active'&&CALL.peer===from){
@@ -767,7 +776,7 @@ function onCall(call){
     }else try{call.close()}catch(e){}
     return;
   }
-  if(CALL.st!=='idle'){try{call.close()}catch(e){}return}
+  if(CALL.st!=='idle'||VC.ch){try{call.close()}catch(e){}return}
   CALL.st='in';CALL.peer=from;CALL.inc=call;callUI();ring(true);
   call.on('close',()=>{if(CALL.inc===call&&CALL.st==='in')endCall()});
   CALL.tm=setTimeout(()=>{if(CALL.st==='in')endCall()},45000);
@@ -798,6 +807,133 @@ const callPanelEl=document.getElementById('callpanel');if(callPanelEl)callPanelE
   else if(a==='share')toggleShare();
 });
 setInterval(()=>{const el=document.getElementById('ctime');if(el&&CALL.st==='active'){const sec=Math.floor((Date.now()-CALL.t0)/1000);el.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}},1000);
+
+/* ---------- voice channels (group voice + screen share, peer-to-peer mesh) ---------- */
+const VC={ch:null,stream:null,calls:{},scr:null,scrCalls:{},muted:false,deaf:false,hb:null,dummy:null};
+const VCP={};
+const vcPeople=ch=>Object.entries(VCP[ch]||{}).filter(([,x])=>x.exp>Date.now()).map(([u])=>u).sort();
+const vcList=id=>{const l=vcPeople(id);return l.length?`<div class="vcl">${l.map(u=>`<div class="vcu">${av(u)}<span>${esc(u)}</span></div>`).join('')}</div>`:''};
+function voiceMain(c,mc){
+  const part=vcPeople(c.id),here=VC.ch===c.id,id=esc(c.id);
+  return `<div class="main"><div class="mhead">${burger()}<span class="hash">🔊</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${id}">Settings</button><button class="tab" data-a="chdup" data-n="${id}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${id}">Remove</button></span>`:''}</div>
+  <div class="pane"><div class="vcgrid">${part.map(u=>`<button class="vcc" data-a="prof" data-n="${esc(u)}">${av(u,0,1)}<span style="color:${rc(u)}">${esc(u)}${u===me?' (you)':''}</span></button>`).join('')||'<div class="empty">Nobody is in this voice channel yet.</div>'}</div>
+  <div class="acts" style="justify-content:center">${here?'<button class="btn no" data-a="vcleave">Leave voice</button>':`<button class="btn" data-a="vcjoin" data-n="${id}">Join voice</button>`}</div>
+  ${canPost(c)?'':'<p class="sub" style="text-align:center;margin-top:12px">You can listen here, but you don’t have permission to speak.</p>'}
+  ${can('screen')?'':'<p class="sub" style="text-align:center">Screen sharing needs the “Share screen” permission.</p>'}</div></div>`;
+}
+function vcUI(){
+  const p=document.getElementById('vcpanel'),bar=document.getElementById('vcbar');if(!p||!bar)return;
+  if(!VC.ch){p.hidden=true;bar.innerHTML='';return}
+  const c=chan(VC.ch)||{name:'voice'},part=vcPeople(VC.ch);p.hidden=false;
+  bar.innerHTML=`<div class="ct">🔊 <b>${esc(c.name)}</b> · ${part.length} connected</div><div class="vcp">${part.map(u=>`<span class="vcu">${av(u)}<span>${esc(u)}</span></span>`).join('')}</div><div class="ca">${VC.stream?`<button class="btn sec" data-v="mute">${VC.muted?'Unmute':'Mute'}</button>`:'<span class="sub">Listening only</span>'}<button class="btn sec" data-v="deaf">${VC.deaf?'Undeafen':'Deafen'}</button>${can('screen')&&navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-v="share">${VC.scr?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-v="leave">Leave</button></div>`;
+}
+function vcStream(){
+  if(VC.stream)return VC.stream;
+  if(!VC.dummy){const ctx=new (window.AudioContext||window.webkitAudioContext)();VC.dummy=ctx.createMediaStreamDestination().stream}
+  return VC.dummy;
+}
+async function vcPresence(act,ch=VC.ch){
+  if(!MQ.key||!ch||!NET.sp||!NET.sp.id)return;
+  if(VCP[ch]&&VCP[ch][me])VCP[ch][me].exp=Date.now()+13000;
+  const pl=await mqEnc({u:me,p:NET.sp.id,a:act});
+  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/vc/${ch}`,pl,{qos:0,retain:false});
+}
+function vcSeen(ch,u,p,act){
+  const c=chan(ch);if(!c||!c.vc||!canSee(c)||!getU(u)||u===me||![0,1,2,3].some(s=>p===pid(u,s)))return;
+  const m=VCP[ch]=VCP[ch]||{},had=m[u]&&m[u].exp>Date.now();
+  if(act==='leave'){delete m[u];if(VC.ch===ch)vcDrop(u)}else m[u]={p,exp:Date.now()+13000};
+  if(VC.ch===ch&&act!=='leave')vcConnect(u,p);
+  if(!had||act==='leave'){vcUI();renderSoon()}
+}
+function vcAudio(p,rs){
+  const box=document.getElementById('vcaudio');if(!box)return;
+  let a=[...box.children].find(x=>x.dataset.p===p);if(!a){a=document.createElement('audio');a.autoplay=true;a.dataset.p=p;box.appendChild(a)}
+  a.srcObject=rs;a.muted=VC.deaf;a.play().catch(()=>{});
+}
+function vcAttach(c,u,p){
+  VC.calls[p]={call:c,u};
+  c.on('stream',rs=>vcAudio(p,rs));
+  c.on('close',()=>{if(VC.calls[p]&&VC.calls[p].call===c){delete VC.calls[p];const box=document.getElementById('vcaudio');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove())}});
+  c.on('error',()=>{});
+}
+function vcConnect(u,p){
+  if(!VC.ch||!NET.sp||!NET.sp.open||VC.calls[p]||NET.sp.id===p||!(NET.sp.id>p))return;
+  vcAttach(NET.sp.call(p,vcStream(),{metadata:{from:me,kind:'vc',ch:VC.ch}}),u,p);
+  if(VC.scr&&can('screen'))vcSendScreen(p);
+}
+function vcDrop(u){
+  for(const [p,x] of Object.entries(VC.calls))if(x.u===u){try{x.call.close()}catch(e){}delete VC.calls[p]}
+  const box=document.getElementById('vcaudio');if(box)[...box.children].filter(a=>VC.calls[a.dataset.p]===undefined).forEach(a=>a.remove());
+}
+function vcScreenIn(p,u,st){
+  const box=document.getElementById('vcscreens');if(!box)return;
+  let w=[...box.children].find(x=>x.dataset.p===p);if(w)w.remove();
+  w=document.createElement('div');w.className='vcscr';w.dataset.p=p;
+  const vid=document.createElement('video');vid.autoplay=true;vid.playsInline=true;vid.srcObject=st;w.appendChild(vid);
+  const cap=document.createElement('div');cap.className='sub';cap.textContent=u+' is sharing their screen';w.appendChild(cap);box.appendChild(w);vid.play().catch(()=>{});
+}
+function vcScreenOut(p){const box=document.getElementById('vcscreens');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove())}
+function vcOnCall(call){
+  const md=call.metadata||{},from=md.from,ch=md.ch,c=chan(ch);
+  const ok=VC.ch&&ch===VC.ch&&typeof from==='string'&&from!==me&&getU(from)&&[0,1,2,3].some(s=>call.peer===pid(from,s))&&c&&c.vc&&canSee(c);
+  if(!ok){try{call.close()}catch(e){}return}
+  if(md.kind==='vc'){
+    if(VC.calls[call.peer])try{VC.calls[call.peer].call.close()}catch(e){}
+    call.answer(vcStream());vcAttach(call,from,call.peer);
+    if(VC.scr&&can('screen'))vcSendScreen(call.peer);
+  }else{
+    if(!can('screen',from)){try{call.close()}catch(e){}return}
+    call.answer();call.on('stream',st=>vcScreenIn(call.peer,from,st));call.on('close',()=>vcScreenOut(call.peer));
+  }
+}
+function vcSendScreen(p){if(!VC.scr||!NET.sp)return;try{VC.scrCalls[p]=NET.sp.call(p,VC.scr,{metadata:{from:me,kind:'vcscreen',ch:VC.ch}})}catch(e){}}
+function vcStopShare(){Object.values(VC.scrCalls).forEach(c=>{try{c.close()}catch(e){}});VC.scrCalls={};try{VC.scr&&VC.scr.getTracks().forEach(t=>t.stop())}catch(e){}VC.scr=null}
+async function vcShare(){
+  if(!VC.ch)return;
+  if(!can('screen'))return notice('No permission','You need the “Share screen” permission to share in voice channels.');
+  if(VC.scr){vcStopShare();return vcUI()}
+  let st;try{st=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false})}catch(e){return}
+  VC.scr=st;st.getVideoTracks()[0].addEventListener('ended',()=>{if(VC.scr===st){vcStopShare();vcUI()}});
+  Object.keys(VC.calls).forEach(vcSendScreen);vcUI();
+}
+async function vcJoin(id){
+  const c=chan(id);if(!c||!c.vc||!canSee(c))return;
+  if(VC.ch)return notice('Already in a voice channel','Leave it before joining another one.');
+  if(CALL.st!=='idle')return notice('You’re in a call','Hang up your call before joining a voice channel.');
+  if(!NET.sp||!NET.sp.open||!MQ.cl.some(x=>x.connected))return notice('Voice unavailable','Your connection isn’t ready yet. Try again in a few seconds.');
+  let stream=null;
+  if(canPost(c)){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return notice('Voice unavailable','This browser can’t use the microphone here. Voice needs a secure (https) page.');
+    try{stream=await navigator.mediaDevices.getUserMedia(micOpts)}catch(e){return notice('Microphone blocked','Allow microphone access in your browser to speak in voice channels.')}
+  }
+  VC.ch=id;VC.stream=stream;VC.muted=false;VC.deaf=false;
+  (VCP[id]=VCP[id]||{})[me]={p:NET.sp.id,exp:Date.now()+13000};
+  vcPresence('join');VC.hb=setInterval(()=>vcPresence('hb'),4000);vcUI();render();
+}
+function vcLeave(){
+  if(!VC.ch)return;const ch=VC.ch;vcPresence('leave',ch);clearInterval(VC.hb);
+  Object.values(VC.calls).forEach(x=>{try{x.call.close()}catch(e){}});vcStopShare();
+  try{VC.stream&&VC.stream.getTracks().forEach(t=>t.stop())}catch(e){}
+  for(const id of ['vcaudio','vcscreens']){const b=document.getElementById(id);if(b)b.innerHTML=''}
+  if(VCP[ch])delete VCP[ch][me];
+  Object.assign(VC,{ch:null,stream:null,calls:{},scr:null,scrCalls:{},muted:false,deaf:false,hb:null});
+  vcUI();render();
+}
+const vcPanelEl=document.getElementById('vcpanel');
+if(vcPanelEl)vcPanelEl.addEventListener('click',e=>{
+  const vid=e.target.closest&&e.target.closest('video');
+  if(vid){const f=vid.requestFullscreen||vid.webkitRequestFullscreen;if(f)f.call(vid);return}
+  const b=e.target.closest('[data-v]');if(!b)return;const a=b.dataset.v;
+  if(a==='leave')vcLeave();
+  else if(a==='mute'&&VC.stream){VC.muted=!VC.muted;VC.stream.getAudioTracks().forEach(t=>t.enabled=!VC.muted);vcUI()}
+  else if(a==='deaf'){VC.deaf=!VC.deaf;document.querySelectorAll('#vcaudio audio').forEach(x=>x.muted=VC.deaf);vcUI()}
+  else if(a==='share')vcShare();
+});
+setInterval(()=>{
+  let ch=false;const t=Date.now();
+  for(const id in VCP)for(const u in VCP[id])if(VCP[id][u].exp<t){delete VCP[id][u];ch=true;if(VC.ch===id)vcDrop(u)}
+  if(ch){vcUI();if(me)renderSoon()}
+},3000);
 
 /* ---------- typing indicators ---------- */
 const TYP={};let typSent=0;
@@ -889,7 +1025,7 @@ function modalHtml(){
   }else if(m.t==='chname'){
     const add=m.mode==='add',ch=add?{}:(chan(m.id)||{}),cur=ch.name||'',id=esc(m.id||'');
     const chips=(f,key)=>roleList().map(r=>`<button class="chip ${Array.isArray(ch[key])&&ch[key].includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="${f}" data-n="${id}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet.</span>';
-    const extra=add?'':`<div class="cap">Channel type</div><div class="chips"><button class="chip ${ch.a?'on':''}" style="--c:#f0b232" data-a="chann" data-n="${id}">Announcement-only</button></div><span class="sub">Only the Owner and roles with “Post announcements” can post.</span>
+    const extra=add?`<div class="cap">Channel type</div><div class="chips"><button class="chip ${m.vc?'':'on'}" style="--c:#5865f2" data-a="chtype" data-t="text">Text</button><button class="chip ${m.vc?'on':''}" style="--c:#5865f2" data-a="chtype" data-t="voice">🔊 Voice</button></div>`:ch.vc?`<div class="cap">Who can see this channel</div><div class="chips">${chips('chvis','vis')}</div><span class="sub">${Array.isArray(ch.vis)&&ch.vis.length?'Private: only these roles (and the Owner) can see it.':'No roles selected: everyone can see it.'}</span><div class="cap">Who can speak</div><div class="chips">${chips('chpost','post')}</div><span class="sub">${Array.isArray(ch.post)&&ch.post.length?'Only these roles (and the Owner) can speak. Others can listen.':'No roles selected: everyone who can see it can speak.'}</span>`:`<div class="cap">Channel type</div><div class="chips"><button class="chip ${ch.a?'on':''}" style="--c:#f0b232" data-a="chann" data-n="${id}">Announcement-only</button></div><span class="sub">Only the Owner and roles with “Post announcements” can post.</span>
     <div class="cap">Who can see this channel</div><div class="chips">${chips('chvis','vis')}</div><span class="sub">${Array.isArray(ch.vis)&&ch.vis.length?'Private: only these roles (and the Owner) can see it.':'No roles selected: everyone can see it.'}</span>
     <div class="cap">Who can post</div><div class="chips">${chips('chpost','post')}</div><span class="sub">${Array.isArray(ch.post)&&ch.post.length?'Only these roles (and the Owner) can post.':'No roles selected: everyone who can see it can post.'}</span>
     <div class="cap">Slowmode</div><div class="chips">${SLOWS.map(([n,l])=>`<button class="chip ${(slowSecs(ch))===n?'on':''}" style="--c:#5865f2" data-a="chslow" data-n="${id}" data-s="${n}">${l}</button>`).join('')}</div><span class="sub">Members can send one message per interval. The Owner and roles with “Bypass slowmode” are exempt.</span>
@@ -947,10 +1083,10 @@ function render(){
   if(v.t==='server'){
     const c=v.ch?chan(v.ch):null,mem=users();
     side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
-      ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span>${pm[x.id]?`<span class="badge" style="position:static;border:0;margin-left:auto">${pm[x.id]}</span>`:''}</button>`).join('')}
+      ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${x.vc?'🔊':Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span>${pm[x.id]?`<span class="badge" style="position:static;border:0;margin-left:auto">${pm[x.id]}</span>`:''}</button>${x.vc?vcList(x.id):''}`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=!c?`<div class="main"><div class="mhead">${burger()}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
+    main=!c?`<div class="main"><div class="mhead">${burger()}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
@@ -996,7 +1132,7 @@ const notice=(title,msg)=>{v.modal={t:'alert',title,msg};render()};
 function submitChan(){
   const m=v.modal,n=cname(document.getElementById('chn').value);
   if(!n){document.getElementById('cerr').textContent='Use letters, numbers, dashes, underscores or emojis.';return false}
-  if(m.mode==='add'){const id=newId();db.ch[id]={id,name:uniq(n),o:now(),m:now()};v.ch=id;v.t='server'}
+  if(m.mode==='add'){const id=newId();db.ch[id]={id,name:uniq(n),o:now(),m:now()};if(m.vc)db.ch[id].vc=1;v.ch=id;v.t='server'}
   else{const c=db.ch[m.id];if(c&&n!==c.name){c.name=uniq(n);bump(c)}}
   v.modal=null;changed();return true;
 }
@@ -1004,7 +1140,7 @@ async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NE
 async function dupChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
   for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b);mqPubBlob(n.v,'official:'+nid)}}catch(e){}}L.push(n)}
-  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
+  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vc:c.vc,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;
@@ -1066,6 +1202,8 @@ root.addEventListener('click',e=>{
   if(a==='pickpic')return document.getElementById('picin').click();
   if(a==='attachimg')return document.getElementById('imgin').click();
   if(a==='call')return startCall(n);
+  if(a==='vcjoin')return vcJoin(n);
+  if(a==='vcleave')return vcLeave();
   if(a==='rcancel'){v.reply=null;return render()}
   if(a==='jump'){const el=root.querySelector('[data-mid="'+String(b.dataset.id).replace(/"/g,'')+'"]');if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500)}return}
   if(a==='acpick'){const el=document.getElementById('msgin');if(!el)return;const pre=el.value.slice(0,el.selectionStart),post=el.value.slice(el.selectionStart);el.value=pre.replace(/@([a-z0-9._-]*)$/i,'@'+n+' ')+post;document.getElementById('ac').innerHTML='';el.focus();grow(el);return}
@@ -1110,6 +1248,7 @@ root.addEventListener('click',e=>{
   else if(a==='chslow'&&mcan()&&db.ch[n]){const c=db.ch[n],q=+b.dataset.s;if(SLOWS.some(x=>x[0]===q)){if(q)c.slow=q;else delete c.slow;bump(c);changed()}}
   else if(['chvis','chpost','chslowx','chnohist'].includes(a)&&mcan()&&db.ch[n]){const c=db.ch[n],f=({chvis:'vis',chpost:'post',chslowx:'slowx',chnohist:'nohist'})[a],r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];bump(c);changed()}
   else if(a==='rperm'&&isAdmin()){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];bump(r);changed()}}
+  else if(a==='chtype'&&v.modal&&v.modal.t==='chname'){v.modal.vc=b.dataset.t==='voice'}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
   else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isAdmin())doDelRole(m.id)}
   else if(a==='mesave'){
