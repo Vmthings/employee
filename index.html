@@ -175,6 +175,31 @@ input,textarea{font-size:16px}
 .emb-yt{display:block;width:min(420px,100%);aspect-ratio:16/9;border:0;border-radius:8px;margin-top:4px;background:#000}
 .emb-card{display:block;max-width:min(420px,100%);margin-top:4px;padding:8px 12px;border-left:4px solid var(--blurple);background:#2b2d31;border-radius:4px;color:var(--text)!important}
 .emb-card .h{font-weight:600;color:#00a8fc}.emb-card .u{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reply{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-bottom:2px;cursor:pointer;overflow:hidden;white-space:nowrap}
+.reply .ri{opacity:.7}.reply .rs{overflow:hidden;text-overflow:ellipsis}.reply:hover .rs{color:var(--text)}
+.replybar{display:flex;align-items:center;gap:8px;background:#2b2d31;border-radius:8px 8px 0 0;padding:6px 12px;font-size:13px;color:var(--muted);margin-bottom:-2px}
+.replybar .rs{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.replybar button{color:var(--muted);padding:0 4px}.replybar button:hover{color:#fff}
+.msg.ping{background:rgba(250,166,26,.1);box-shadow:inset 3px 0 0 #faa61a}
+@keyframes fl{from{background:rgba(88,101,242,.35)}to{background:transparent}}
+.msg.flash{animation:fl 1.5s}
+.poll{max-width:min(420px,100%);margin-top:4px;background:#2b2d31;border-radius:8px;padding:10px 12px}
+.pq{font-weight:600;margin-bottom:8px;overflow-wrap:anywhere}
+.po{position:relative;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;border-radius:6px;background:#383a40;overflow:hidden;border:1px solid transparent}
+.po.on{border-color:var(--blurple)}
+.po .pb{position:absolute;inset:0 auto 0 0;background:rgba(88,101,242,.35)}
+.po .pt,.po .pn{position:relative}.po .pt{flex:1;overflow-wrap:anywhere}.po .pn{font-size:12px;color:var(--muted)}
+.ps{font-size:12px;color:var(--muted)}
+.pic{display:block;max-width:min(360px,100%);max-height:320px;border-radius:8px;margin-top:4px;cursor:zoom-in;background:#2b2d31}
+.pic:not(.ok){min-width:160px;min-height:100px}
+.big{display:block;max-width:100%;max-height:80vh;margin:0 auto;border-radius:6px}
+.mbox.wide{max-width:min(900px,96vw)}
+.ac{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.ac:empty{display:none}
+.ac button{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;background:#2b2d31;border-radius:16px}
+.ac button:hover{background:var(--hover)}.ac .av{width:20px;height:20px;font-size:11px}
+.ric.dmav{padding:0}.ric.dmav .av{width:48px;height:48px;font-size:20px}
+.burger{position:relative}
+.burger .dot{position:absolute;top:2px;right:0;min-width:16px;height:16px;border-radius:8px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -203,6 +228,7 @@ const ADMIN='vmthings',isAdmin=()=>me===ADMIN;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hue=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return h};
 const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const cleanO=a=>a.filter(z=>Number.isInteger(z)&&z>=0&&z<10).slice(0,10);
 const okId=s=>typeof s==='string'&&/^[\w.|:-]{1,70}$/.test(s)&&!/^(__proto__|constructor|prototype)$/.test(s);
 const col=c=>/^#[0-9a-f]{6}$/i.test(c)?c:'#5865f2';
 const safePic=p=>typeof p==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(p)?p:null;
@@ -216,7 +242,7 @@ const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nohistory','Can’t view chat history',1]];
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
 const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
 function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
 function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
@@ -237,9 +263,10 @@ const outOf=n=>edges(n).filter(f=>f.st==='req'&&f.from===n).map(f=>oth(f,n));
 const av=(n,c,big)=>{const p=safePic((db.users[n]||{}).pic);return `<div class="av${big?' big':''}${c?' tap':''}"${c?` data-a="prof" data-n="${esc(n)}"`:''} style="${p?`background:url(${p}) center/cover`:`background:hsl(${hue(n)} 55% 45%)`}">${p?'':esc(n[0]||'?')}</div>`};
 const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(n)}</span>`;
 const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
-const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del);
-const BURGER='<button class="burger" data-a="nav" aria-label="Open menu">☰</button>';
-const tomb=m=>{m.del=1;m.m=now();m.x='';delete m.v;delete m.vt;delete m.ed};
+const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del&&!m.pv);
+const burger=()=>`<button class="burger" data-a="nav" aria-label="Open menu">☰${UNR?`<span class="dot">${UNR>9?'9+':UNR}</span>`:''}</button>`;
+const BURGER_OLD='<button class="burger" data-a="nav" aria-label="Open menu">☰</button>';
+const tomb=m=>{m.del=1;m.m=now();m.x='';delete m.v;delete m.vt;delete m.ed;delete m.img;delete m.poll;delete m.re};
 
 /* ---------- video storage (IndexedDB) ---------- */
 let _idb;const idb=()=>_idb||(_idb=new Promise((res,rej)=>{const r=indexedDB.open('hrs_media',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
@@ -315,10 +342,15 @@ function mergeIn(p,dmKey){
     const L=db.msgs[k]=db.msgs[k]||[],idx=new Map(L.map(x=>[x.id,x]));let add=false;
     for(const b of mk[k]){
       if(!b||!okId(b.id)||typeof b.u!=='string'||!Number.isFinite(b.t)||!Number.isFinite(b.m))continue;
+      if(b.pv&&!(okId(b.pv)&&Array.isArray(b.o)&&b.id==='pv-'+b.pv+'-'+b.u))continue;
+      if(!b.del&&!b.pv&&!b.poll&&!b.img&&!b.v&&!(typeof b.x==='string'&&b.x))continue;
       const a=idx.get(b.id);
-      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);add=ch=true}
-      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;ch=true}
-      else if(!a.del&&!b.del&&b.m>a.m&&b.u===a.u&&typeof b.x==='string'){a.x=b.x.slice(0,2000);a.m=b.m;a.ed=Number.isFinite(b.ed)?b.ed:b.m;ch=true}
+      if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.img&&okId(b.img))n.img=b.img;if(b.re&&okId(b.re))n.re=b.re;
+      if(b.pv&&okId(b.pv)&&Array.isArray(b.o)&&b.id==='pv-'+b.pv+'-'+b.u){n.pv=b.pv;n.o=cleanO(b.o)}
+      if(b.poll&&typeof b.poll==='object'&&typeof b.poll.q==='string'&&Array.isArray(b.poll.o)&&b.poll.o.length>=2)n.poll={q:b.poll.q.slice(0,200),o:b.poll.o.slice(0,10).map(z=>String(z).slice(0,80)),mu:!!b.poll.mu};
+      if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);add=ch=true}
+      else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;delete a.img;delete a.poll;ch=true}
+      else if(!a.del&&!b.del&&b.m>a.m&&b.u===a.u&&typeof b.x==='string'){if(a.pv){if(Array.isArray(b.o))a.o=cleanO(b.o);a.m=b.m}else{a.x=b.x.slice(0,2000);a.m=b.m;a.ed=Number.isFinite(b.ed)?b.ed:b.m}ch=true}
     }
     if(add)L.sort((x,y)=>x.t-y.t);
   }
@@ -377,7 +409,7 @@ function onDM(c,d){
 
 /* ---------- shared relay: encrypted, retained messages so every device sees everything ---------- */
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
-const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null};
+const MQ={cl:[],ready:false,ns:'',key:null,seen:{},buf:null,want:{},pend:[]};
 const b64=u=>{let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
 const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function mqEnc(o,key=MQ.key){
@@ -393,6 +425,14 @@ async function mqPub(sec,id,r,k){
   MQ.seen[sec+'/'+id]=r.m;
   for(const c of MQ.cl)if(c.connected)c.publish(topic,pl,{qos:1,retain:true});
 }
+async function mqPubImg(id,k){
+  const key=k.startsWith('dm:')?await dmKey(k.slice(3)):MQ.key;
+  if(!key||!MQ.cl.some(c=>c.connected)){if(!MQ.pend.some(x=>x[0]===id))MQ.pend.push([id,k]);return}
+  const blob=await getBlob(id);if(!blob)return;
+  const pl=await mqEnc({id,b:b64(new Uint8Array(await blob.arrayBuffer()))},key);
+  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/img/${id}`,pl,{qos:1,retain:true});
+}
+function mqWantImg(id,k){if(!k||MQ.want[id])return;MQ.want[id]=k;for(const c of MQ.cl)if(c.connected)c.subscribe(`${MQ.ns}/img/${id}`,{qos:1})}
 async function mqPubDM(k,m){
   if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
   const pair=k.slice(3),[a,b]=pair.split('|');if(!a||!b||!okId(m.id))return;
@@ -431,9 +471,10 @@ async function mqInit(){
   MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
   for(const url of BROKERS){
     const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
-    c.on('connect',()=>{c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#'),{qos:1});mqSubDM(c);status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();status()},2500)});
+    c.on('connect',()=>{c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/img/${id}`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubImg(id,k));status()},2500)});
     c.on('message',async(t,buf)=>{try{
       const txt=new TextDecoder().decode(buf),p=t.split('/');
+      if(p[2]==='img'){const id=p[3],kk=MQ.want[id];if(!kk||!txt)return;const o=await mqDec(txt,kk.startsWith('dm:')?await dmKey(kk.slice(3)):MQ.key);if(o.id!==id)return;await putBlob(id,new Blob([unb64(o.b)],{type:'image/jpeg'}));delete MQ.want[id];c.unsubscribe(t);renderSoon();return}
       if(p[2]==='dm'){if(!me||!p[3]||!p[4]||(p[3]!==me&&p[4]!==me))return;const pair=[p[3],p[4]].sort().join('|');mqIn(await mqDec(txt,await dmKey(pair)),pair)}
       else mqIn(await mqDec(txt));
     }catch(e){}});
@@ -457,7 +498,7 @@ async function signIn(name,pw){
   }
   me=name;SINCE=now();try{localStorage.setItem('hrs_me',me)}catch(e){}
   v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
-  startSelf();mqSubAll();setTimeout(mqSync,2500);render();return '';
+  rdLoad();startSelf();mqSubAll();setTimeout(mqSync,2500);render();return '';
 }
 function addFriend(raw){
   const n=raw.trim().toLowerCase().replace(/^@/,'');
@@ -487,7 +528,7 @@ function slowText(c){
 function send(text){
   text=text.trim();if(!text||v.t==='home')return false;
   if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c)||slowLeft(c)>0)return false}
-  const k=key();(db.msgs[k]=db.msgs[k]||[]).push({id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)});changed();return true;
+  const k=key(),rec={id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)};if(v.reply&&v.reply.k===k)rec.re=v.reply.id;v.reply=null;(db.msgs[k]=db.msgs[k]||[]).push(rec);changed();return true;
 }
 function fmt(ts){
   const d=new Date(ts),t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -497,7 +538,7 @@ function fmt(ts){
 /* ---------- views ---------- */
 /* ---------- Discord-style markdown + link embeds ---------- */
 const link=(u,t)=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer nofollow">${esc(t)}</a>`;
-function md(src){
+function md(src,author){
   const K=[],H=h=>'\u0000'+(K.push(h)-1)+'\u0000';
   let t=String(src).replace(/\u0000/g,'');
   t=t.replace(/```(?:[\w+-]{1,20}\n)?([\s\S]*?)```/g,(m,c)=>H(`<pre class="cb"><code>${esc(c.replace(/^\n+|\n+$/g,''))}</code></pre>`));
@@ -505,7 +546,7 @@ function md(src){
   t=t.replace(/\[([^\]\n]{1,100})\]\((https?:\/\/[^\s)]{1,500})\)/g,(m,x,u)=>H(link(u,x)));
   t=t.replace(/<(https?:\/\/[^\s>]{1,500})>|(https?:\/\/[^\s<]{1,500}[^\s<.,;:!?)\]'"])/g,(m,a,b)=>{const u=a||b;return H(link(u,u))});
   t=t.replace(/\\([\\*_~|`>#\[\]()-])/g,(m,c)=>H(esc(c)));
-  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>getU(n)?p+H(`<span class="mention">@${esc(n)}</span>`):m);
+  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>(getU(n)||(n==='everyone'&&author&&can('pingall',author)))?p+H(`<span class="mention">@${esc(n)}</span>`):m);
   t=esc(t);
   const inl=x=>x
     .replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>')
@@ -547,21 +588,114 @@ function embedsOf(x){
 }
 const grow=el=>{el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px'};
 
+/* ---------- unread badges, pings, replies, polls, photos ---------- */
+let RD={},rdTm,UNR=0;const iurl={};
+function rdSave(){try{localStorage.setItem('hrs_rd_'+me,JSON.stringify(RD))}catch(e){}}
+function rdLoad(){try{RD=JSON.parse(localStorage.getItem('hrs_rd_'+me))||{}}catch(e){RD={}}if(!RD._i){RD._i=now();rdSave()}}
+const rdT=k=>RD[k]??RD._i??now();
+function markRead(){if(!me||document.visibilityState!=='visible')return;if(v.t==='dm'||v.t==='server'){RD[key()]=now();clearTimeout(rdTm);rdTm=setTimeout(rdSave,1500)}}
+const rxe=n=>n.replace(/[.*+?^${}()|[\]\\-]/g,'\\$&');
+function pingedMsg(m,n,by){
+  const x=m.x||'';
+  if(new RegExp('(^|[^\\w])@'+rxe(n)+'(?![\\w.-])','i').test(x))return true;
+  if(/(^|[^\w])@everyone(?![\w.-])/i.test(x)&&can('pingall',m.u))return true;
+  const o=m.re&&by&&by.get(m.re);return !!(o&&o.u===n);
+}
+function unreadDM(p){if(v.t==='dm'&&v.peer===p)return 0;const k='dm:'+fk(me,p),t=rdT(k);return msgsOf(k).filter(m=>m.u!==me&&m.t>t).length}
+function pingCount(k){if(v.t==='server'&&k==='official:'+v.ch)return 0;const L=msgsOf(k),by=new Map(L.map(x=>[x.id,x])),t=rdT(k);return L.filter(m=>m.u!==me&&m.t>t&&pingedMsg(m,me,by)).length}
+const snip=m=>m.poll?'📊 '+m.poll.q:(m.x||'').replace(/\s+/g,' ').slice(0,80)||(m.img?'📷 Photo':m.v?'🎞 Video':'');
+function replyBar(){
+  if(!v.reply)return '';
+  const m=(db.msgs[v.reply.k]||[]).find(x=>x.id===v.reply.id);
+  if(!m||m.del){v.reply=null;return ''}
+  return `<div class="replybar">Replying to <b style="color:${rc(m.u)}">${esc(m.u)}</b><span class="rs">${esc(snip(m))}</span><button type="button" data-a="rcancel" aria-label="Cancel reply">✕</button></div>`;
+}
+const votesOf=(k,pid)=>(db.msgs[k]||[]).filter(x=>x.pv===pid&&!x.del&&Array.isArray(x.o)&&x.o.length);
+function pollHtml(m,k){
+  const p=m.poll,vs=votesOf(k,m.id),tot=vs.length,mine=(vs.find(x=>x.u===me)||{}).o||[];
+  const cnt=p.o.map((_,i)=>vs.filter(x=>x.o.includes(i)).length);
+  return `<div class="poll"><div class="pq">📊 ${esc(p.q)}</div>${p.o.map((o,i)=>{const pc=tot?Math.round(cnt[i]/tot*100):0;return `<button class="po${mine.includes(i)?' on':''}" data-a="vote" data-id="${esc(m.id)}" data-i="${i}"><span class="pb" style="width:${pc}%"></span><span class="pt">${esc(o)}</span><span class="pn">${cnt[i]} · ${pc}%</span></button>`}).join('')}<div class="ps">${tot} ${tot===1?'vote':'votes'}${p.mu?' · multiple answers allowed':' · pick one'}</div></div>`;
+}
+const pollDraft=()=>({q:(document.getElementById('pq')||{}).value||'',o:[0,1,2,3,4,5].map(i=>(document.getElementById('po'+i)||{}).value||''),mu:!!(document.getElementById('pmu')||{}).checked});
+function makePoll(){
+  const d=pollDraft(),q=d.q.trim().slice(0,200),o=d.o.map(x=>x.trim().slice(0,80)).filter(Boolean).slice(0,6),er=document.getElementById('cerr'),c=chan(v.ch);
+  if(!q||o.length<2){er.textContent='Add a question and at least two options.';return}
+  if(!can('poll')||v.t!=='server'||!c||!canPost(c)||slowLeft(c)>0){er.textContent='You can’t post a poll here right now.';return}
+  const k=key(),rec={id:newId(),u:me,t:now(),m:now(),x:'',poll:{q,o,mu:!!d.mu}};
+  if(v.reply&&v.reply.k===k){rec.re=v.reply.id;v.reply=null}
+  (db.msgs[k]=db.msgs[k]||[]).push(rec);v.modal=null;changed();render();
+}
+function castVote(id,i){
+  const k=key(),pm=(db.msgs[k]||[]).find(x=>x.id===id&&x.poll&&!x.del);
+  if(!pm||!(i>=0&&i<pm.poll.o.length))return;
+  if(v.t==='server'){const c=chan(v.ch);if(!c||!canSee(c))return}
+  const vid='pv-'+pm.id+'-'+me,r=(db.msgs[k]||[]).find(x=>x.id===vid),cur=r&&Array.isArray(r.o)?r.o:[];
+  const next=pm.poll.mu?(cur.includes(i)?cur.filter(z=>z!==i):[...cur,i]):(cur.includes(i)?[]:[i]);
+  const t=Math.max(now(),(r?r.m:0)+1);
+  if(r){r.o=next;r.m=t;r.t=t}else(db.msgs[k]=db.msgs[k]||[]).push({id:vid,u:me,t,m:t,x:'',pv:pm.id,o:next});
+  changed();render();
+}
+async function shrink(f){
+  let bm;try{bm=await createImageBitmap(f)}catch(e){bm=await new Promise((res,rej)=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
+  const w0=bm.width||bm.naturalWidth,h0=bm.height||bm.naturalHeight;let b=null;
+  for(const [max,q] of [[1280,.82],[1000,.7],[800,.6]]){
+    const sc=Math.min(1,max/Math.max(w0,h0)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w0*sc));c.height=Math.max(1,Math.round(h0*sc));
+    const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bm,0,0,c.width,c.height);
+    b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b&&b.size<=600*1024)return b;
+  }
+  return b;
+}
+async function sendPhoto(f){
+  if(v.t==='home')return;
+  if(!f.type.startsWith('image/'))return notice('Can’t send this file','Choose a photo.');
+  if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c))return notice('Can’t post here','You don’t have permission to post in this channel.');if(slowLeft(c)>0)return notice('Slowmode is on','Wait '+slowLeft(c)+'s before sending another message.')}
+  let blob;try{blob=await shrink(f)}catch(e){return notice('Photo not sent','That image couldn’t be read.')}
+  if(!blob||blob.size>700*1024)return notice('Photo is too large','Try a smaller photo.');
+  const id=newId(),k=key(),cap=document.getElementById('msgin');
+  try{await putBlob(id,blob)}catch(e){return notice('Photo not saved','Storage on this device may be full.')}
+  const rec={id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',img:id};
+  if(v.reply&&v.reply.k===k){rec.re=v.reply.id;v.reply=null}
+  (db.msgs[k]=db.msgs[k]||[]).push(rec);if(cap)cap.value='';iurl[id]=URL.createObjectURL(blob);
+  changed();mqPubImg(id,k);render();
+}
+function imgGone(id){
+  if(Object.values(db.msgs).some(L=>L.some(x=>x.img===id&&!x.del)))return;
+  delBlob(id).catch(()=>{});delete iurl[id];
+  for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/img/${id}`,'',{retain:true,qos:1});
+}
+function acUpdate(el){
+  const box=document.getElementById('ac');if(!box)return;
+  const m=el.value.slice(0,el.selectionStart).match(/(^|\s)@([a-z0-9._-]*)$/i);
+  if(!m){box.innerHTML='';return}
+  const q=m[2].toLowerCase(),l=users().filter(n=>n.startsWith(q)&&n!==me).slice(0,5);
+  if(can('pingall')&&'everyone'.startsWith(q))l.unshift('everyone');
+  box.innerHTML=l.map(n=>`<button type="button" data-a="acpick" data-n="${esc(n)}">${av(n)}<span>@${esc(n)}</span></button>`).join('');
+}
+
 function msgsHtml(){
-  const srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));let list=msgsOf(key());if(nh)list=list.filter(m=>m.t>=SINCE);let prev=null,out='';
-  const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer;
+  const k=key(),srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));
+  const all=msgsOf(k),by=new Map(all.map(x=>[x.id,x]));let list=all;if(nh)list=list.filter(m=>m.t>=SINCE);
+  let prev=null,out='';
+  const title=srv?'Welcome to #'+c.name:'Your chat with '+v.peer,canRe=!srv||canPost(c);
   out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
-    const first=!prev||prev.u!==m.u||m.t-prev.t>300000;
-    const body=`<div class="tx">${m.x?md(m.x):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
-    const tl=(m.u===me?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
-    out+=first?`<div class="msg first">${av(m.u,1)}<div>${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
-      :`<div class="msg"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
+    const first=!prev||prev.u!==m.u||m.t-prev.t>300000||!!m.re;
+    let rp='';
+    if(m.re){const o=by.get(m.re);rp=o?`<div class="reply" data-a="jump" data-id="${esc(o.id)}"><span class="ri">↱</span><b style="color:${rc(o.u)}">${esc(o.u)}</b> <span class="rs">${esc(snip(o))}</span></div>`:'<div class="reply"><span class="ri">↱</span><span class="rs">The original message was deleted or isn’t available.</span></div>'}
+    const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" controls preload="metadata"></video>`:''}`;
+    const tl=(canRe?`<button data-a="reply" data-id="${esc(m.id)}" aria-label="Reply">Reply</button>`:'')+(m.u===me&&!m.poll?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
+    const png=m.u!==me&&pingedMsg(m,me,by)?' ping':'';
+    out+=first?`<div class="msg first${png}" data-mid="${esc(m.id)}">${av(m.u,1)}<div>${rp}${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
+      :`<div class="msg${png}" data-mid="${esc(m.id)}"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
     prev=m;
   });
   return out;
 }
 function hydrate(){
+  document.querySelectorAll('img[data-img]').forEach(async el=>{
+    const id=el.dataset.img;
+    try{if(!iurl[id]){const b=await getBlob(id);if(b)iurl[id]=URL.createObjectURL(b);else{mqWantImg(id,el.dataset.k);return}}el.src=iurl[id];el.classList.add('ok')}catch(e){}
+  });
   document.querySelectorAll('img.emb-img').forEach(i=>{i.onerror=()=>{const p=document.createElement('div');p.className='sub';p.textContent='Image couldn’t be loaded.';i.replaceWith(p)}});document.querySelectorAll('video[data-vid]').forEach(async el=>{
   const id=el.dataset.vid;
   try{
@@ -573,9 +707,10 @@ function hydrate(){
     el.src=vurl[id];
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
 })}
-function composer(ph,lock,att,top){
-  return `<form class="composer" data-a="send">${top||''}<div class="cbox">${lock?'<textarea id="msgin" rows="1" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message"></textarea>'
-  :`${att?'<button type="button" class="clip" data-a="attach" title="Send a video" aria-label="Send a video">+</button>':''}<textarea id="msgin" rows="1" placeholder="${ph}" maxlength="2000" aria-label="Message"></textarea><button type="submit" class="sendbtn" aria-label="Send message">➤</button>`}</div>${att&&!lock?'<input type="file" id="vidin" accept="video/*" hidden>':''}</form>`;
+function composer(ph,lock,att,top,poll){
+  const bt=(a,t,g)=>`<button type="button" class="clip" data-a="${a}" title="${t}" aria-label="${t}">${g}</button>`;
+  return `<form class="composer" data-a="send">${top||''}<div id="ac" class="ac"></div><div class="cbox">${lock?'<textarea id="msgin" rows="1" disabled placeholder="You don’t have permission to post in this channel" aria-label="Message"></textarea>'
+  :`${bt('attachimg','Send a photo','📷')}${att?bt('attach','Send a video','🎞'):''}${poll?bt('pollopen','Create a poll','📊'):''}<textarea id="msgin" rows="1" placeholder="${ph}" maxlength="2000" aria-label="Message"></textarea><button type="submit" class="sendbtn" aria-label="Send message">➤</button>`}</div>${lock?'':`<input type="file" id="imgin" accept="image/*" hidden>${att?'<input type="file" id="vidin" accept="video/*" hidden>':''}`}</form>`;
 }
 function modalHtml(){
   const m=v.modal;if(!m)return '';let c='';
@@ -610,12 +745,17 @@ function modalHtml(){
   }else if(m.t==='medit'){
     const x=(db.msgs[m.k]||[]).find(q=>q.id===m.id);
     c=`<h2>Edit message</h2><textarea id="medit" maxlength="2000" aria-label="Message text">${esc(m.draft??(x?x.x:''))}</textarea><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="mesave">Save</button></div>`;
+  }else if(m.t==='poll'){
+    const d=m.d||{q:'',o:[],mu:false};
+    c=`<h2>Create a poll</h2><input id="pq" placeholder="Ask a question" maxlength="200" value="${esc(d.q)}" aria-label="Question">${Array.from({length:m.n},(_,i)=>`<input id="po${i}" placeholder="Option ${i+1}" maxlength="80" value="${esc((d.o||[])[i]||'')}" aria-label="Option ${i+1}">`).join('')}<div class="acts" style="margin-top:6px">${m.n<6?'<button class="btn sec" data-a="polladd">Add option</button>':''}<label class="chk"><input type="checkbox" id="pmu" ${d.mu?'checked':''}> Allow multiple answers</label></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn" data-a="pollgo">Create poll</button></div>`;
+  }else if(m.t==='pic'){
+    c=`<img class="big" src="${esc(iurl[m.id]||'')}" alt="Photo">`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn" data-a="mclose">OK</button></div>`;
   }
-  return `<div class="modal"><div class="mbox" role="dialog" aria-modal="true">${c}<button class="x" data-a="mclose" aria-label="Close">✕</button></div></div>`;
+  return `<div class="modal"><div class="mbox${m.t==='pic'?' wide':''}" role="dialog" aria-modal="true">${c}<button class="x" data-a="mclose" aria-label="Close">✕</button></div></div>`;
 }
 function ctxHtml(){
   const x=v.ctx;if(!x||!can('chan')||!chan(x.id))return '';
@@ -637,29 +777,35 @@ function render(){
   }
   if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
   if(v.t==='dm'&&!getU(v.peer)){v.t='home';v.peer=null}
+  if(v.reply&&(v.t==='home'||v.reply.k!==key()))v.reply=null;
   const fr=friendsOf(me),inc=incOf(me),out=outOf(me),pend=inc.length,adm=isAdmin(),mc=can('chan');
+  markRead();
+  const du=fr.map(n=>({n,c:unreadDM(n)})).filter(x=>x.c>0),um=Object.fromEntries(du.map(x=>[x.n,x.c]));
+  const pm=Object.fromEntries(chans().filter(x=>canSee(x)).map(x=>[x.id,pingCount('official:'+x.id)])),sp=Object.values(pm).reduce((a,b)=>a+b,0);
+  UNR=du.reduce((a,x)=>a+x.c,0)+sp;document.title=(UNR?'('+UNR+') ':'')+'hrs chat';
+  const dmav=du.slice(0,6).map(x=>`<button class="ric dmav" data-a="dm" data-n="${esc(x.n)}" title="${esc(x.n)}" aria-label="Unread messages from ${esc(x.n)}">${av(x.n)}<span class="badge">${x.c>9?'9+':x.c}</span></button>`).join('');
   const rail=`<nav class="rail" aria-label="Servers">
-    <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>
+    <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>${dmav}
     <div class="sep"></div>
-    <button class="ric logo ${v.t==='server'?'on':''}" data-a="server" title="Official" aria-label="Official server">hrs</button><div class="nst"></div></nav>`;
+    <button class="ric logo ${v.t==='server'?'on':''}" data-a="server" title="Official" aria-label="Official server">hrs${sp?`<span class="badge">${sp>9?'9+':sp}</span>`:''}</button><div class="nst"></div></nav>`;
   let side,main;
   const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(me)}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
   if(v.t==='server'){
     const c=v.ch?chan(v.ch):null,mem=users();
     side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
-      ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span></button>`).join('')}
+      ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span>${pm[x.id]?`<span class="badge" style="position:static;border:0;margin-left:auto">${pm[x.id]}</span>`:''}</button>`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=!c?`<div class="main"><div class="mhead">${BURGER}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${BURGER}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`)}</div>
+    main=!c?`<div class="main"><div class="mhead">${burger()}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(n)}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
       <button class="item ${v.t==='home'?'on':''}" data-a="friends"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
       <div class="cap">Direct messages</div>
-      ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span></button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
+      ${fr.length?fr.map(n=>`<button class="item ${v.t==='dm'&&v.peer===n?'on':''}" data-a="dm" data-n="${esc(n)}">${av(n)}<span class="nm">${esc(n)}</span>${um[n]?`<span class="badge" style="position:static;border:0;margin-left:auto">${um[n]}</span>`:''}</button>`).join(''):'<div class="cap" style="font-weight:400">Add a friend to start a conversation.</div>'}
       </div>${meBar}</div>`;
     if(v.t==='dm'){
-      main=`<div class="main"><div class="mhead">${BURGER}<span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false)}</div></div></div>`;
+      main=`<div class="main"><div class="mhead">${burger()}<span class="hash">@</span>${nameTag(v.peer)}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message @'+esc(v.peer),false,false,replyBar())}</div></div></div>`;
     }else{
       let pane='';
       if(v.tab==='add'){
@@ -674,7 +820,7 @@ function render(){
         pane=`<h3>All friends — ${fr.length}</h3>`+(fr.length?fr.map(n=>`<div class="row">${av(n,1)}<div class="nm">${esc(n)}</div>
           <button class="btn" data-a="dm" data-n="${esc(n)}">Message</button><button class="btn no" data-a="unf" data-n="${esc(n)}">Remove</button></div>`).join(''):'<div class="empty">No friends yet. Use Add Friend to send a request.</div>');
       }
-      main=`<div class="main"><div class="mhead">${BURGER}<span style="font-size:20px">☺</span>Friends
+      main=`<div class="main"><div class="mhead">${burger()}<span style="font-size:20px">☺</span>Friends
         <button class="tab ${v.tab==='all'?'on':''}" data-a="tab" data-n="all">All</button>
         <button class="tab ${v.tab==='pending'?'on':''}" data-a="tab" data-n="pending">Pending${pend?' ('+pend+')':''}</button>
         <button class="tab add ${v.tab==='add'?'on':''}" data-a="tab" data-n="add">Add Friend</button></div><div class="pane">${pane}</div></div>`;
@@ -716,7 +862,7 @@ function doDelChan(id){
   (db.msgs['official:'+id]||[]).forEach(m=>{if(m.v)delBlob(m.v).catch(()=>{});tomb(m)});
   db.ch[id].del=1;db.ch[id].m=now();if(v.ch===id)v.ch=chans()[0].id;changed();
 }
-function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed()}
+function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;const im=m.img;if(m.v)delBlob(m.v).catch(()=>{});tomb(m);changed();if(im)imgGone(im)}
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;r.m=now();changed()}}
 async function sendVideo(f){
   if(!can('video')||v.t!=='server')return;
@@ -751,6 +897,8 @@ async function doLogin(){
 let lp,lpFired=false;
 const mcan=()=>can('chan');
 root.addEventListener('click',e=>{
+  markRead();
+  if(v.modal&&v.modal.t==='poll'&&document.getElementById('pq'))v.modal.d=pollDraft();
   {const ci=document.getElementById('chn');if(ci&&v.modal&&v.modal.t==='chname')v.modal.draft=ci.value}
   if(lpFired){lpFired=false;return}
   if(v.ctx){v.ctx=null;const q=document.querySelector('.ctx');if(q)q.remove()}
@@ -762,6 +910,16 @@ root.addEventListener('click',e=>{
   if(a==='logout')return signOut();
   if(a==='attach')return document.getElementById('vidin').click();
   if(a==='pickpic')return document.getElementById('picin').click();
+  if(a==='attachimg')return document.getElementById('imgin').click();
+  if(a==='rcancel'){v.reply=null;return render()}
+  if(a==='jump'){const el=root.querySelector('[data-mid="'+String(b.dataset.id).replace(/"/g,'')+'"]');if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500)}return}
+  if(a==='acpick'){const el=document.getElementById('msgin');if(!el)return;const pre=el.value.slice(0,el.selectionStart),post=el.value.slice(el.selectionStart);el.value=pre.replace(/@([a-z0-9._-]*)$/i,'@'+n+' ')+post;document.getElementById('ac').innerHTML='';el.focus();grow(el);return}
+  if(a==='reply'){const k=key(),m=(db.msgs[k]||[]).find(x=>x.id===b.dataset.id);if(!m||m.del)return;if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c))return}v.reply={k,id:m.id};return render()}
+  if(a==='vote')return castVote(b.dataset.id,+b.dataset.i);
+  if(a==='viewimg'){v.modal={t:'pic',id:b.dataset.id};return render()}
+  if(a==='pollopen'){if(v.t!=='server'||!can('poll'))return;v.modal={t:'poll',n:2,d:{q:'',o:[],mu:false}};return render()}
+  if(a==='polladd'){if(v.modal&&v.modal.t==='poll')v.modal.n=Math.min(6,v.modal.n+1);return render()}
+  if(a==='pollgo')return makePoll();
   if(a==='chdup')return dupChan(n);
   if(a==='chdel')return delChan(n);
   if(a==='delgo')return delAccount();
@@ -813,9 +971,10 @@ root.addEventListener('submit',e=>{
   if(f.dataset.a==='send'){const i=document.getElementById('msgin');if(send(i.value))i.value='';render()}
   else if(f.dataset.a==='addf'){addFriend(document.getElementById('friendin').value);render()}
 });
-root.addEventListener('input',e=>{if(e.target.id==='msgin')grow(e.target)});
+root.addEventListener('input',e=>{if(e.target.id==='msgin'){grow(e.target);acUpdate(e.target)}});
 root.addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(e.target.id==='imgin'){sendPhoto(f);e.target.value='';return}
   if(e.target.id==='vidin'){sendVideo(f);e.target.value='';return}
   if(e.target.id==='picin'&&f.type.startsWith('image/')){
     const img=new Image(),url=URL.createObjectURL(f);
@@ -850,6 +1009,7 @@ root.addEventListener('keydown',e=>{
 
 /* ---------- start ---------- */
 if(me&&!getU(me))me=null;
+if(me)rdLoad();
 render();
 if(window.Peer){join();if(me)startSelf()}else{NET.st='offline';status()}
 mqInit().catch(()=>{});
@@ -862,7 +1022,7 @@ const wake=()=>{
   else if(!(NET.hub&&NET.hub.open))join();
   if(me){if(!NET.sp||NET.sp.destroyed)startSelf();else if(NET.sp.disconnected)try{NET.sp.reconnect()}catch(e){}}
 };
-document.addEventListener('visibilitychange',wake);window.addEventListener('online',wake);window.addEventListener('pageshow',wake);
+document.addEventListener('visibilitychange',()=>{wake();if(document.visibilityState==='visible'&&me)render()});window.addEventListener('online',wake);window.addEventListener('pageshow',wake);
 window.addEventListener('beforeunload',()=>{try{NET.hp&&NET.hp.destroy();NET.sp&&NET.sp.destroy()}catch(e){}});
 </script>
 </body>
