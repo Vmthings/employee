@@ -218,6 +218,11 @@ input,textarea{font-size:16px}
 .svbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(17,18,20,.94);color:#fff}
 .svbtns{display:flex;gap:8px;flex-wrap:wrap}
 .shead.tap{cursor:pointer}.shead.tap:hover{background:var(--hover)}
+.toasts{position:fixed;top:12px;right:12px;z-index:40;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 24px));pointer-events:none}
+.toast{pointer-events:auto;cursor:pointer;background:#111214;border-left:4px solid var(--blurple);border-radius:6px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow-wrap:anywhere}
+.toast b{display:block;margin-bottom:2px}.toast div{color:var(--muted);font-size:14px;max-height:3.2em;overflow:hidden}
+.notibar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:35;background:#111214;border-radius:10px;padding:10px 14px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px)}
+.notibar[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -225,6 +230,8 @@ input,textarea{font-size:16px}
 <input type="file" id="imgin" accept="image/*" hidden>
 <input type="file" id="vidin" accept="video/*" hidden>
 <input type="file" id="picin" accept="image/*" hidden>
+<div id="toasts" class="toasts"></div>
+<div id="notibar" class="notibar" hidden></div>
 <div id="screenview" class="screenview" hidden><video id="sv" autoplay playsinline></video><div class="svbar"><span id="svcap"></span><div id="svbtns" class="svbtns"></div></div></div>
 <div id="vcpanel" class="callpanel vcpanel" hidden><div id="vcbar"></div><div id="vcscreens"></div><div id="vcaudio"></div></div>
 <div id="callpanel" class="callpanel" hidden><div id="callbar"></div><video id="rscreen" class="rscreen" autoplay playsinline hidden></video><audio id="raudio" autoplay></audio></div>
@@ -235,12 +242,12 @@ input,textarea{font-size:16px}
    Change it to your own secret BEFORE sharing the site, and never change it afterwards (that starts a new empty chat). */
 const COMPANY_CODE='H4CK13B3RRY';
 const K='hrs_chat_v2',root=document.getElementById('root'),now=()=>Date.now();
-const SECS=['users','roles','ch','fr','sv','mb'];
+const SECS=['users','roles','ch','fr','sd'];
 const bump=r=>{r.m=Math.max(now(),(r.m||0)+1);return r};
 let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
 try{me=localStorage.getItem('hrs_me')}catch(e){}
 function norm(d){
-  for(const s of ['users','roles','ch','fr','sv','mb','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
+  for(const s of ['users','roles','ch','fr','sv','mb','sd','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
   d.roles.employee=d.roles.employee||{id:'employee',name:'Employee',color:'#5865f2',m:1};
   d.ch.general=d.ch.general||{id:'general',name:'general',o:1,m:1};
   d.ch.announcements=d.ch.announcements||{id:'announcements',name:'announcements',a:1,o:2,m:1};
@@ -286,11 +293,15 @@ const chans=(sid=SVID())=>Object.keys(db.ch).filter(id=>!db.ch[id].del&&(db.ch[i
 const chan=id=>{const c=db.ch[id];return c&&!c.del?{...c,id}:null};
 /* ---- servers: Official is built in; others are created by users ---- */
 const SVID=()=>v.sv||'official';
-const svRec=sid=>sid==='official'?{id:'official',name:'Official',owner:ADMIN}:(db.sv[sid]&&!db.sv[sid].del?db.sv[sid]:null);
-const isOwner=(n,sid=SVID())=>n===ADMIN||(sid!=='official'&&!!db.sv[sid]&&db.sv[sid].owner===n);
-const isMember=(n,sid)=>{if(!getU(n))return false;if(sid==='official')return true;const s=svRec(sid);if(!s)return false;if(n===ADMIN||s.owner===n)return true;const r=db.mb[sid+'|'+n];return !!(r&&r.st==='in'&&!r.del)};
+const sdRec=sid=>{const d=db.sd[sid];return d&&!d.del&&okId(sid)?d:null};
+const svRec=sid=>{if(sid==='official')return{id:'official',name:'Official',owner:ADMIN};const x=db.sv[sid];if(x&&!x.del)return x;const d=sdRec(sid);return d?{id:sid,name:d.name,owner:d.owner,o:d.o,remote:1}:null};
+const svOwnerOf=sid=>sid==='official'?ADMIN:((db.sv[sid]||db.sd[sid]||{}).owner||'');
+const isOwner=(n,sid=SVID())=>n===ADMIN||(sid!=='official'&&svOwnerOf(sid)===n);
+const sjHas=(n,sid)=>{const u=db.users[n];return !!(u&&u.sj&&typeof u.sj==='object'&&typeof u.sj[sid]==='string')};
+const isMember=(n,sid)=>{if(!getU(n))return false;if(sid==='official')return true;const s=svRec(sid);if(!s)return false;if(n===ADMIN||svOwnerOf(sid)===n)return true;const r=db.mb[sid+'|'+n];return !!(r&&r.st==='in'&&!r.del)};
 const isBanned=(n,sid)=>{const r=db.mb[sid+'|'+n];return !!(r&&r.st==='ban'&&!r.del)};
-const servers=()=>{const l=[svRec('official')];Object.values(db.sv).filter(x=>!x.del&&okId(x.id)&&(me===ADMIN||isMember(me,x.id))).sort((a,b)=>a.o-b.o).forEach(x=>l.push(x));return l};
+const svOk=sid=>sid==='official'||(!!svRec(sid)&&(isMember(me,sid)||(sjHas(me,sid)&&!db.sv[sid])));
+const servers=()=>{const l=[svRec('official')];Object.values(db.sd).filter(d=>!d.del&&okId(d.id)&&svOk(d.id)&&(me===ADMIN||d.owner===me||sjHas(me,d.id)||isMember(me,d.id))).sort((a,b)=>a.o-b.o).forEach(d=>l.push(svRec(d.id)));return l};
 const memberUsers=sid=>users().filter(n=>isMember(n,sid));
 const svOfKey=k=>k.startsWith('official:')?((db.ch[k.slice(9)]||{}).s||'official'):'official';
 const vsid=()=>(db.ch[VC.ch]||{}).s||'official';
@@ -352,8 +363,8 @@ function connectHub(){
 }
 function pick(since){
   const p={msgs:{}};
-  for(const s of SECS){p[s]={};for(const id in db[s])if(db[s][id].m>=since)p[s][id]=db[s][id]}
-  for(const k in db.msgs)if(k.startsWith('official:')){const l=db.msgs[k].filter(m=>m.m>=since);if(l.length)p.msgs[k]=l}
+  for(const s of SECS){p[s]={};for(const id in db[s]){const r=db[s][id];if(r.m<since)continue;if((s==='roles'||s==='ch')&&r.s&&r.s!=='official')continue;p[s][id]=r}}
+  for(const k in db.msgs)if(k.startsWith('official:')&&svOfKey(k)==='official'){const l=db.msgs[k].filter(m=>m.m>=since);if(l.length)p.msgs[k]=l}
   return p;
 }
 const isEmpty=p=>!Object.keys(p.msgs).length&&SECS.every(s=>!Object.keys(p[s]).length);
@@ -361,6 +372,7 @@ function changed(){save();clearTimeout(pushTm);pushTm=setTimeout(push,120)}
 function push(){
   clearTimeout(pushTm);const since=NET.last;NET.last=now();
   const p=pick(since);
+  svPush(since);
   if(!isEmpty(p))mqPush(p);
   if(me)for(const k in db.msgs)if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me))for(const m of db.msgs[k])if(m.m>=since)mqPubDM(k,m);
   if(!isEmpty(p)){
@@ -369,17 +381,18 @@ function push(){
   }
   for(const ck in dmc){const c=dmc[ck],k=ck.split('#')[0];if(!c.open||!db.msgs[k])continue;const l=db.msgs[k].filter(m=>m.m>=since);if(l.length)c.send({k,t:'upd',p:{msgs:{[k]:l}}})}
 }
-function mergeIn(p,dmKey){
+function mergeIn(p,dmKey,svid){
   if(!p||typeof p!=='object')return false;
-  let ch=false;const sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
-  if(!dmKey)for(const s of SECS){
+  let ch=false;const live=[],sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
+  if(!dmKey)for(const s of (svid?['sv','mb','ch','roles']:SECS)){
     const r=p[s];if(!r||typeof r!=='object')continue;
     for(const id in r){if(!okId(id)||!sane(r[id]))continue;const a=db[s][id];
+      if(svid){if(s==='sv'?id!==svid:r[id].s!==svid)continue}else if((s==='roles'||s==='ch')&&r[id].s&&r[id].s!=='official')continue;
       if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true}}
   }
   const mk=p.msgs&&typeof p.msgs==='object'?p.msgs:{};
   for(const k in mk){
-    if(dmKey?k!==dmKey:!/^official:[\w-]{1,40}$/.test(k))continue;
+    if(dmKey?k!==dmKey:(!/^official:[\w-]{1,40}$/.test(k)||svOfKey(k)!==(svid||'official')))continue;
     if(!Array.isArray(mk[k]))continue;
     const L=db.msgs[k]=db.msgs[k]||[],idx=new Map(L.map(x=>[x.id,x]));let add=false;
     for(const b of mk[k]){
@@ -390,13 +403,13 @@ function mergeIn(p,dmKey){
       if(!a){const n={id:b.id,u:b.u.slice(0,20),t:b.t,m:b.m,at:Date.now()>BURST?now():0,x:typeof b.x==='string'?b.x.slice(0,2000):''};if(b.v&&okId(b.v)){n.v=b.v;n.vt=typeof b.vt==='string'?b.vt.slice(0,40):''}if(b.img&&okId(b.img))n.img=b.img;if(Number.isInteger(b.bn)&&b.bn>0&&b.bn<=120)n.bn=b.bn;if(b.re&&okId(b.re))n.re=b.re;
       if(b.pv&&okId(b.pv)&&Array.isArray(b.o)&&b.id==='pv-'+b.pv+'-'+b.u){n.pv=b.pv;n.o=cleanO(b.o)}
       if(b.poll&&typeof b.poll==='object'&&typeof b.poll.q==='string'&&Array.isArray(b.poll.o)&&b.poll.o.length>=2)n.poll={q:b.poll.q.slice(0,200),o:b.poll.o.slice(0,10).map(z=>String(z).slice(0,80)),mu:!!b.poll.mu};
-      if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);typClear(k,n.u);add=ch=true}
+      if(b.del)n.del=1;if(Number.isFinite(b.ed))n.ed=b.ed;L.push(n);idx.set(n.id,n);typClear(k,n.u);if(n.at&&!n.pv&&!n.del)live.push([k,n]);add=ch=true}
       else if(b.del&&!a.del){a.del=1;a.m=b.m;a.x='';delete a.v;delete a.ed;delete a.img;delete a.poll;delete a.bn;ch=true}
       else if(!a.del&&!b.del&&b.m>a.m&&b.u===a.u&&typeof b.x==='string'){if(a.pv){if(Array.isArray(b.o))a.o=cleanO(b.o);a.m=b.m}else{a.x=b.x.slice(0,2000);a.m=b.m;a.ed=Number.isFinite(b.ed)?b.ed:b.m}ch=true}
     }
     if(add)L.sort((x,y)=>x.t-y.t);
   }
-  if(ch){save();if(me&&!getU(me)){signOut();return true}renderSoon()}
+  if(ch){applyDir();save();if(me&&!getU(me)){signOut();return true}renderSoon();live.forEach(([k,n])=>{try{notifyMsg(k,n)}catch(e){}})}
   return ch;
 }
 function onHub(c,d){
@@ -427,6 +440,7 @@ function startSelf(slot=0){
 function stopSelf(){if(NET.sp){try{NET.sp.destroy()}catch(e){}}NET.sp=null;for(const k in dmc){try{dmc[k].close()}catch(e){}delete dmc[k]}}
 function dmTick(){
   if(!me||!NET.sp||!NET.sp.open)return;
+  svTick();
   for(const f of edges(me)){
     if(f.st!=='ok'||f.keep===me||!f.keep)continue;
     const k='dm:'+fk(f.a,f.b);
@@ -442,6 +456,7 @@ function dmTick(){
   }
 }
 function onDM(c,d){
+  if(d&&typeof d.k==='string'&&d.k.startsWith('sv:'))return onSv(c,d);
   if(!d||typeof d.k!=='string'||!d.p||!me)return;
   if(!/^dm:[a-z0-9._-]{2,20}\|[a-z0-9._-]{2,20}$/.test(d.k))return;
   const pr=d.k.slice(3).split('|');if(!pr.includes(me))return;
@@ -451,6 +466,122 @@ function onDM(c,d){
   mergeIn(d.p,d.k);
   if(d.t==='sync'){dmc[d.k+'#'+c.peer]=c;c.send({k:d.k,t:'state',p:{msgs:{[d.k]:db.msgs[d.k]||[]}}})}
 }
+
+
+/* ---------- servers live on their owner's device ---------- */
+const SVH={},JOINW={},SWANT={};
+const emptySv=p=>!p||(['sv','mb','ch','roles'].every(s=>!Object.keys(p[s]||{}).length)&&!Object.keys(p.msgs||{}).length);
+function pickSv(sid,since){
+  const p={sv:{},mb:{},ch:{},roles:{},msgs:{}},x=db.sv[sid];
+  if(x&&x.m>=since)p.sv[sid]=x;
+  for(const k in db.mb){const r=db.mb[k];if(r.s===sid&&r.m>=since)p.mb[k]=r}
+  for(const id in db.ch){const c=db.ch[id];if(c.s!==sid)continue;if(c.m>=since)p.ch[id]=c;const L=db.msgs['official:'+id];if(L){const l=L.filter(m=>m.m>=since);if(l.length)p.msgs['official:'+id]=l}}
+  for(const id in db.roles){const r=db.roles[id];if(r.s===sid&&r.m>=since)p.roles[id]=r}
+  return p;
+}
+function redactFor(p,sid,u){
+  if(!p||!p.sv||!p.sv[sid]||can('invite',u,sid))return p;
+  const {ic,...rest}=p.sv[sid];return {...p,sv:{...p.sv,[sid]:rest}};
+}
+/* the host checks every change against the sender's permissions before applying it */
+function authSv(sid,u,p){
+  const out={sv:{},mb:{},ch:{},roles:{},msgs:{}},own=isOwner(u,sid),O=o=>o&&typeof o==='object';
+  if(own&&O(p.sv)&&O(p.sv[sid])&&db.sv[sid])out.sv[sid]={...p.sv[sid],id:sid,owner:db.sv[sid].owner};
+  if(O(p.mb))for(const k in p.mb){
+    const r=p.mb[k];if(!O(r)||r.s!==sid||typeof r.u!=='string'||k!==sid+'|'+r.u)continue;
+    const old=db.mb[k]||{},prot=isOwner(r.u,sid);
+    const ok=(r.u===u&&r.st==='out'&&old.st!=='ban')||(own&&!(prot&&r.st!=='in'))||(!prot&&((r.st==='ban'&&can('ban',u,sid))||(r.st==='out'&&(old.st==='ban'?can('ban',u,sid):can('kick',u,sid)))));
+    if(ok)out.mb[k]=r;
+  }
+  if(O(p.ch)&&can('chan',u,sid))for(const id in p.ch){const r=p.ch[id];if(O(r)&&r.s===sid)out.ch[id]=r}
+  if(O(p.roles)&&own)for(const id in p.roles){const r=p.roles[id];if(O(r)&&r.s===sid)out.roles[id]=r}
+  if(O(p.msgs))for(const k in p.msgs){
+    if(!/^official:[\w-]{1,40}$/.test(k)||!Array.isArray(p.msgs[k]))continue;
+    const cc=db.ch[k.slice(9)]||out.ch[k.slice(9)];if(!cc||cc.s!==sid||!canSee(cc,u))continue;
+    const L=p.msgs[k].filter(b=>{
+      if(!b||typeof b.u!=='string')return false;
+      const ex=(db.msgs[k]||[]).find(z=>z.id===b.id);
+      if(b.del&&ex&&ex.u!==u)return can('delmsg',u,sid);
+      if(b.u!==u)return false;
+      return !!ex||!!b.pv||canPost(cc,u);
+    });
+    if(L.length)out.msgs[k]=L;
+  }
+  return out;
+}
+function hostSv(c,d,sid,x){
+  const u=d.u;
+  if(typeof u!=='string'||!getU(u)||![0,1,2,3].some(s=>c.peer===pid(u,s))||x.del)return;
+  c._u=u;
+  if(d.t==='join'){
+    if(isBanned(u,sid))return c.send({k:d.k,t:'deny',msg:'You’re banned from this server.'});
+    if(!isMember(u,sid)){
+      if(!(typeof d.code==='string'&&x.ic&&d.code===x.ic))return c.send({k:d.k,t:'deny',msg:'That invite code isn’t valid.'});
+      const k=sid+'|'+u,old=db.mb[k];db.mb[k]={s:sid,u,st:'in',by:'invite',m:Math.max(now(),(old?old.m:0)+1)};changed();
+    }
+  }else if(!isMember(u,sid))return c.send({k:d.k,t:'deny',msg:'You’re not a member of this server.'});
+  if(!SVH[sid])SVH[sid]=new Set();
+  if(!c._h){c._h=1;SVH[sid].add(c);c.on('close',()=>SVH[sid]&&SVH[sid].delete(c))}
+  if(d.t==='putb'){if(okId(d.id)&&d.buf&&d.buf.byteLength<=16*1024*1024)putBlob(d.id,new Blob([d.buf],{type:String(d.ty||'')})).catch(()=>{});return}
+  if(d.t==='getb'){if(okId(d.id))getBlob(d.id).then(async b=>{if(b)c.send({k:d.k,t:'blob',id:d.id,ty:b.type,buf:await b.arrayBuffer()});else c.send({k:d.k,t:'nob',id:d.id})}).catch(()=>{});return}
+  if(d.p){
+    const ok=authSv(sid,u,d.p);
+    if(mergeIn(ok,null,sid))for(const o of SVH[sid])if(o!==c&&o.open)o.send({k:d.k,t:'upd',p:redactFor(ok,sid,o._u)});
+  }
+  if(d.t==='sync'||d.t==='join')c.send({k:d.k,t:'state',p:redactFor(pickSv(sid,0),sid,u)});
+}
+function svDropMine(sid){const u=db.users[me];if(u&&u.sj&&u.sj[sid]!==undefined){const o={...u.sj};delete o[sid];u.sj=o;bump(u);changed()}}
+function svAfter(sid){
+  const u=db.users[me];if(!u||!db.sv[sid])return;
+  if(isMember(me,sid)&&!sjHas(me,sid)){u.sj={...(u.sj||{}),[sid]:svOwnerOf(sid)};bump(u);changed()}
+  else if(!isMember(me,sid)&&sjHas(me,sid))svDropMine(sid);
+}
+function memberSv(c,d,sid){
+  const own=svOwnerOf(sid)||(JOINW[sid]&&JOINW[sid].owner);
+  if(!own||![0,1,2,3].some(s=>c.peer===pid(own,s)))return;
+  if(d.t==='deny'){const w=JOINW[sid];if(w){clearTimeout(w.t);delete JOINW[sid];w.res(String(d.msg||'The owner declined.'))}else svDropMine(sid);return}
+  if(d.t==='blob'){if(okId(d.id)&&d.buf){const w=SWANT[d.id];putBlob(d.id,new Blob([d.buf],{type:String(d.ty||(w&&w.type)||'')})).then(()=>{delete SWANT[d.id];renderSoon()}).catch(()=>{})}return}
+  if(d.t==='nob'){missing[d.id]=1;delete SWANT[d.id];renderSoon();return}
+  if((d.t==='state'||d.t==='upd')&&d.p){
+    if(d.t==='state')BURST=Date.now()+6000;
+    mergeIn(d.p,null,sid);dmc['svc:'+sid+'#'+c.peer]=c;svAfter(sid);
+    const w=JOINW[sid];if(w&&isMember(me,sid)){clearTimeout(w.t);delete JOINW[sid];v.sv=sid;v.t='server';v.ch=null;w.res('')}
+  }
+}
+function onSv(c,d){
+  const sid=String(d.k).slice(3);if(!me||!okId(sid)||sid==='official')return;
+  const x=db.sv[sid];
+  if(x&&x.owner===me)hostSv(c,d,sid,x);else memberSv(c,d,sid);
+}
+function svTick(){
+  if(!me||!NET.sp||!NET.sp.open)return;
+  for(const x of servers()){
+    if(x.id==='official')continue;const own=svOwnerOf(x.id);if(!own||own===me)continue;
+    for(let s=0;s<4;s++){
+      const rid=pid(own,s),ck='svc:'+x.id+'#'+rid,c=dmc[ck];
+      if(c&&(c.open||c.pending>now()-6000))continue;
+      if(c)try{c.close()}catch(e){}
+      const nc=NET.sp.connect(rid,{reliable:true});nc.pending=now();dmc[ck]=nc;
+      nc.on('open',()=>{nc.pending=0;nc.send({k:'sv:'+x.id,t:'sync',u:me,p:pickSv(x.id,0)})});
+      nc.on('data',d=>onSv(nc,d));
+      const gone=()=>{if(dmc[ck]===nc)delete dmc[ck]};nc.on('close',gone);nc.on('error',gone);
+    }
+  }
+}
+function svPush(since){
+  if(!me)return;
+  for(const sid in SVH){const x=db.sv[sid];if(!x||x.owner!==me)continue;const p=pickSv(sid,since);if(emptySv(p))continue;for(const c of SVH[sid])if(c.open)c.send({k:'sv:'+sid,t:'upd',p:redactFor(p,sid,c._u)})}
+  const done={};
+  for(const ck in dmc){
+    if(!ck.startsWith('svc:'))continue;const c=dmc[ck];if(!c.open)continue;
+    const sid=ck.slice(4).split('#')[0],p=done[sid]||(done[sid]=pickSv(sid,since));
+    if(!emptySv(p))c.send({k:'sv:'+sid,t:'upd',u:me,p});
+  }
+}
+const svConns=sid=>{const o=[];if(SVH[sid])for(const c of SVH[sid])if(c.open)o.push(c);for(const ck in dmc)if(ck.startsWith('svc:'+sid+'#')&&dmc[ck].open)o.push(dmc[ck]);return o};
+async function svPutBlob(sid,id){const b=await getBlob(id);if(!b||b.size>16*1024*1024)return;const buf=await b.arrayBuffer();for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'putb',u:me,id,ty:b.type,buf})}
+function svWantBlob(sid,id,type){if(SWANT[id]&&Date.now()-SWANT[id].t0<8000)return;SWANT[id]={sid,type,t0:Date.now()};for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'getb',u:me,id})}
+function applyDir(){for(const id in db.sd){if(!db.sd[id].del)continue;const x=db.sv[id];if(x&&!x.del){x.del=1;bump(x);for(const cid in db.ch)if(db.ch[cid].s===id&&!db.ch[cid].del){db.ch[cid].del=1;bump(db.ch[cid])}}}}
 
 /* ---------- shared relay: encrypted, retained messages so every device sees everything ---------- */
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
@@ -474,6 +605,7 @@ const CH=150*1024;
 async function mqEncB(bytes,key){const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes)),o=new Uint8Array(12+ct.length);o.set(iv);o.set(ct,12);return o}
 async function mqDecB(u,key){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},key,u.slice(12)))}
 async function mqPubBlob(id,k){
+  const sid0=svOfKey(k);if(sid0!=='official')return svPutBlob(sid0,id);
   const key=k.startsWith('dm:')?await dmKey(k.slice(3)):MQ.key;
   if(!key||!MQ.cl.some(c=>c.connected)){if(!MQ.pend.some(x=>x[0]===id))MQ.pend.push([id,k]);return}
   const blob=await getBlob(id);if(!blob)return;
@@ -484,7 +616,7 @@ async function mqPubBlob(id,k){
     for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/blob/${id}/${i}`,out,{qos:1,retain:true});
   }
 }
-function mqWantBlob(id,k,type){if(!k||MQ.want[id])return;MQ.want[id]={k,type:type||'application/octet-stream',t0:Date.now()};for(const c of MQ.cl)if(c.connected)c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1})}
+function mqWantBlob(id,k,type){if(!k)return;const sid0=svOfKey(k);if(sid0!=='official')return svWantBlob(sid0,id,type);if(MQ.want[id])return;MQ.want[id]={k,type:type||'application/octet-stream',t0:Date.now()};for(const c of MQ.cl)if(c.connected)c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1})}
 function clearBlobs(id,n){for(let i=0;i<(n||1);i++)for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/blob/${id}/${i}`,'',{retain:true,qos:1})}
 async function mqPubDM(k,m){
   if(!MQ.key||!MQ.cl.some(c=>c.connected))return;
@@ -510,7 +642,7 @@ function mqIn(o,pair){
     if(!pair||o.k!=='dm:'+pair)return;
     MQ.dbuf=MQ.dbuf||{};(MQ.dbuf[o.k]=MQ.dbuf[o.k]||[]).push(o.r);
   }else{
-    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},sv:{},mb:{},msgs:{}};
+    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},sd:{},msgs:{}};
     if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
     else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
   }
@@ -666,10 +798,13 @@ const active=()=>document.visibilityState==='visible'&&(!document.hasFocus||docu
 const isNew=(m,t)=>m.t>t||m.at>=t;
 function markRead(){if(!me||!active())return;if(v.t==='dm'||v.t==='server'){RD[key()]=now();clearTimeout(rdTm);rdTm=setTimeout(rdSave,1500)}}
 const rxe=n=>n.replace(/[.*+?^${}()|[\]\\-]/g,'\\$&');
-function pingedMsg(m,n,by,sid){
+function mentionedIn(m,n,sid){
   const x=m.x||'';
   if(new RegExp('(^|[^\\w])@'+rxe(n)+'(?![\\w.-])','i').test(x))return true;
-  if(/(^|[^\w])@everyone(?![\w.-])/i.test(x)&&can('pingall',m.u,sid||'official'))return true;
+  return /(^|[^\w])@everyone(?![\w.-])/i.test(x)&&can('pingall',m.u,sid||'official');
+}
+function pingedMsg(m,n,by,sid){
+  if(mentionedIn(m,n,sid))return true;
   const o=m.re&&by&&by.get(m.re);return !!(o&&o.u===n);
 }
 function unreadDM(p){if(active()&&v.t==='dm'&&v.peer===p)return 0;const k='dm:'+fk(me,p),t=rdT(k);return msgsOf(k).filter(m=>m.u!==me&&isNew(m,t)).length}
@@ -1001,6 +1136,55 @@ setInterval(()=>{
   if(ch){vcUI();if(me)renderSoon()}
 },3000);
 
+/* ---------- notifications: pings, replies and DMs ---------- */
+const NOTI={skip:false};
+const notiSupported=()=>typeof Notification!=='undefined';
+const notiPref=()=>{try{return localStorage.getItem('hrs_noti_'+me)}catch(e){return null}};
+const notiSet=x=>{try{localStorage.setItem('hrs_noti_'+me,x)}catch(e){}};
+const notiOn=()=>notiSupported()&&Notification.permission==='granted'&&notiPref()!=='off';
+function openRoom(k){
+  if(k.startsWith('dm:')){const o=k.slice(3).split('|').find(x=>x!==me);if(!o)return;v.t='dm';v.peer=o}
+  else{const id=k.slice(9),c=db.ch[id];if(!c)return;v.t='server';v.sv=c.s||'official';v.ch=id}
+  v.nav=false;render();
+}
+function toast(title,body,k){
+  const box=document.getElementById('toasts');if(!box)return;
+  const t=document.createElement('div');t.className='toast';t.dataset.k=k||'';
+  const h=document.createElement('b');h.textContent=title;const p=document.createElement('div');p.textContent=body;
+  t.appendChild(h);t.appendChild(p);box.appendChild(t);setTimeout(()=>{try{t.remove()}catch(e){}},7000);
+}
+function notifyMsg(k,m){
+  if(!me||m.u===me||!m.at)return;
+  const by=new Map((db.msgs[k]||[]).map(x=>[x.id,x]));let why,where='',peer=null,chId=null,sid='official';
+  if(k.startsWith('dm:')){if(!k.slice(3).split('|').includes(me))return;peer=m.u;why='dm'}
+  else{
+    chId=k.slice(9);const c=chan(chId);if(!c||!canSee(c))return;sid=c.s||'official';
+    if(!pingedMsg(m,me,by,sid))return;
+    const re=m.re&&by.get(m.re);why=re&&re.u===me&&!mentionedIn(m,me,sid)?'reply':'mention';
+    where='#'+c.name+(sid==='official'?'':' · '+(svRec(sid)||{name:''}).name);
+  }
+  if(active()&&((why==='dm'&&v.t==='dm'&&v.peer===peer)||(why!=='dm'&&v.t==='server'&&v.ch===chId)))return;
+  const who=why==='dm'?dn(m.u):dnS(m.u,sid);
+  const title=why==='dm'?who+' sent you a message':who+(why==='reply'?' replied to you in ':' mentioned you in ')+where,body=snip(m)||'…';
+  if(!active()&&notiOn()){
+    try{const n=new Notification(title,{body,tag:'hrs-'+k,renotify:true});n.onclick=()=>{try{window.focus()}catch(e){}openRoom(k);n.close()}}catch(e){}
+  }else toast(title,body,k);
+}
+function notiBar(){
+  const b=document.getElementById('notibar');if(!b)return;
+  const show=!!me&&notiSupported()&&Notification.permission==='default'&&notiPref()!=='off'&&!NOTI.skip;
+  b.hidden=!show;
+  if(show)b.innerHTML='🔔 Get notified about pings, replies and DMs <button class="btn" data-n="on">Turn on</button><button class="btn sec" data-n="no">Not now</button>';
+}
+const toastsEl=document.getElementById('toasts');
+if(toastsEl)toastsEl.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('.toast');if(!t)return;openRoom(t.dataset.k);t.remove()});
+const notiBarEl=document.getElementById('notibar');
+if(notiBarEl)notiBarEl.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-n]');if(!b)return;
+  if(b.dataset.n==='on')Notification.requestPermission().then(r=>{if(r==='granted')notiSet('on');notiBar()});
+  else{NOTI.skip=true;notiBar()}
+});
+
 /* ---------- typing indicators ---------- */
 const TYP={};let typSent=0;
 const typRoom=()=>v.t==='server'&&v.ch?'ch:'+v.ch:v.t==='dm'&&v.peer?'dm:'+fk(me,v.peer):null;
@@ -1058,7 +1242,7 @@ function hydrate(){
     if(!vurl[id]){
       const b=await getBlob(id);
       if(b)vurl[id]=URL.createObjectURL(b);
-      else{mqWantBlob(id,el.dataset.k,el.dataset.t);const h=NET.hub&&NET.hub.open;if(h&&!asked[id]){asked[id]=1;NET.hub.send({k:'hub',t:'getv',id})}if((h&&!missing[id])||(MQ.want[id]&&Date.now()-MQ.want[id].t0<25000))return;throw 0}
+      else{mqWantBlob(id,el.dataset.k,el.dataset.t);const h=NET.hub&&NET.hub.open&&svOfKey(el.dataset.k)==='official';if(h&&!asked[id]){asked[id]=1;NET.hub.send({k:'hub',t:'getv',id})}if((h&&!missing[id])||((MQ.want[id]||SWANT[id])&&Date.now()-(MQ.want[id]||SWANT[id]).t0<25000))return;throw 0}
     }
     el.src=vurl[id];
   }catch(e){const p=document.createElement('div');p.className='sub';p.textContent='This video isn’t available from the current host.';el.replaceWith(p)}
@@ -1081,6 +1265,8 @@ function modalHtml(){
     {const g=self||can('nick'),sv=self?can('snick'):can('nick');
      act=(g?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="global">${self?'Change nickname':'Manage nickname'}</button>`:'')+(sv?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="server">${self?'Change server nickname':'Manage server nickname'}</button>`:'')+act}
     {const sid=SVID(),ok=v.t==='server'&&sid!=='official'&&!self&&isMember(n,sid)&&!isOwner(n,sid);if(ok&&can('kick',me,sid))act+=`<button class="btn no" data-a="svkick" data-n="${N}">Kick</button>`;if(ok&&can('ban',me,sid))act+=`<button class="btn no" data-a="svban" data-n="${N}">Ban</button>`}
+    if(me===ADMIN&&!self&&n!==ADMIN)act+=`<button class="btn no" data-a="admindel" data-n="${N}">Delete account</button>`;
+    if(self&&notiSupported())act+=`<button class="btn sec" data-a="notitoggle">${Notification.permission==='denied'?'Notifications blocked by browser':(notiOn()?'Notifications: on':'Notifications: off')}</button>`;
     const have=Array.isArray(t.roles)?t.roles:[];
     const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
     c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${D}</div>${nm(n)!==n?`<div class="sub" style="margin:-4px 0 6px;font-size:13px">@${N}</div>`:''}<div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
@@ -1119,7 +1305,7 @@ function modalHtml(){
     const own=isOwner(me,sid),off=sid==='official',bans=Object.values(db.mb).filter(r=>r.s===sid&&r.st==='ban'&&!r.del);
     c=`<h2>${esc(x.name)}</h2>${off?'<p class="mp">The Official server is required for everyone and can’t be left.</p>':''}${!off&&me===ADMIN&&x.owner!==ADMIN?'<p class="sub">You’re managing this server as the site owner.</p>':''}
     ${own&&!off?`<div class="cap">Server name</div><div class="addbox"><input id="svren" value="${esc(x.name)}" maxlength="32" aria-label="Server name"><button class="btn" data-a="svrename">Save</button></div>`:''}
-    ${!off&&(own||can('invite',me,sid))&&x.ic?`<div class="cap">Invite people</div><div class="addbox"><input id="svlink" readonly value="${esc(inviteLink(x))}" aria-label="Invite link"><button class="btn" data-a="svcopy">Copy</button></div><span class="sub">Code: <b>${esc(x.ic)}</b> · anyone with it can join, unless banned.</span>${own?'<div class="acts"><button class="btn sec" data-a="svreset">New invite code</button></div>':''}`:''}
+    ${!off&&(own||can('invite',me,sid))&&x.ic?`<div class="cap">Invite people</div><div class="addbox"><input id="svlink" readonly value="${esc(inviteLink(x))}" aria-label="Invite link"><button class="btn" data-a="svcopy">Copy</button></div><span class="sub">Code: <b>${esc(inviteCode(x))}</b> · anyone with it can join while your device is online, unless banned.</span>${own?'<div class="acts"><button class="btn sec" data-a="svreset">New invite code</button></div>':''}`:''}
     ${!off&&can('ban',me,sid)?`<div class="cap">Banned (${bans.length})</div>${bans.length?bans.map(r=>`<div class="row" style="padding:6px 0"><span class="nm">${esc(dn(r.u))}</span><button class="btn sec" data-a="svunban" data-n="${esc(r.u)}">Unban</button></div>`).join(''):'<span class="sub">Nobody is banned.</span>'}`:''}
     <div class="acts">${!off&&!own?'<button class="btn no" data-a="svleave">Leave server</button>':''}${!off&&own?'<button class="btn no" data-a="svdelete">Delete server</button>':''}<button class="btn sec" data-a="mclose">Close</button></div>`;
   }else if(m.t==='confirm'){
@@ -1147,7 +1333,7 @@ function render(){
     if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus();if(el.tagName==='TEXTAREA')grow(el)}}
     status();return;
   }
-  if(!svRec(SVID())||!isMember(me,SVID()))v.sv='official';
+  if(!svOk(SVID()))v.sv='official';
   if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&(cc.s||'official')===SVID()&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
   if(v.t==='dm'&&!getU(v.peer)){v.t='home';v.peer=null}
   if(v.reply&&(v.t==='home'||v.reply.k!==key()))v.reply=null;
@@ -1172,7 +1358,7 @@ function render(){
       ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${x.vc?'🔊':Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span>${pm[x.id]?`<span class="badge" style="position:static;border:0;margin-left:auto">${pm[x.id]}</span>`:''}</button>${x.vc?vcList(x.id):''}`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       ${SVID()==='official'?'<div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div>':''}</div>${meBar}</div>`;
-    main=!c?`<div class="main"><div class="mhead">${burger()}${esc(sv0.name)}</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
+    main=!c?`<div class="main"><div class="mhead">${burger()}${esc(sv0.name)}</div><div class="pane"><div class="empty">${db.sv[SVID()]||SVID()==='official'?'No channels are available for your roles yet.':'Connecting to the server’s owner… This server is stored on their device, so they need to be online.'}</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(dnS(n))}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
@@ -1204,7 +1390,7 @@ function render(){
   }
   root.innerHTML=`<div id="app"><div class="nav${v.nav?' open':''}">${rail}${side}</div><div class="scrim" data-a="navx"></div>${main}</div>${modalHtml()}${ctxHtml()}`;
   const m=document.getElementById('msgs');if(m)m.scrollTop=stick?m.scrollHeight:top0;
-  hydrate();status();typUpdate();
+  hydrate();status();typUpdate();notiBar();
   if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus();if(el.tagName==='TEXTAREA')grow(el)}}
   else if(v.modal){const i=document.querySelector('.modal input:not([type=file]):not([type=color])');if(i)i.focus()}
   else if(v.tab==='add'&&v.t==='home'){const f=document.getElementById('friendin');if(f)f.focus()}
@@ -1225,7 +1411,7 @@ function submitChan(){
 async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NET.hub.send({k:'hub',t:'putv',id,ty:b.type,buf:await b.arrayBuffer()})}
 async function dupChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
-  for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b);mqPubBlob(n.v,'official:'+nid)}}catch(e){}}L.push(n)}
+  for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);if((c.s||'official')==='official')uploadVid(n.v,b);mqPubBlob(n.v,'official:'+nid)}}catch(e){}}L.push(n)}
   db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),s:c.s,a:c.a,vc:c.vc,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
@@ -1253,7 +1439,8 @@ function setNick(target,raw,scope,sid=SVID()){
 }
 /* ---------- servers: create, invite, kick, ban ---------- */
 const newCode=()=>Array.from(crypto.getRandomValues(new Uint8Array(10)),b=>'abcdefghjkmnpqrstuvwxyz23456789'[b%31]).join('');
-const inviteLink=sv=>{try{return location.origin+location.pathname+'#join='+sv.ic}catch(e){return '#join='+sv.ic}};
+const inviteCode=sv=>sv.owner+'~'+sv.id+'~'+sv.ic;
+const inviteLink=sv=>{try{return location.origin+location.pathname+'#join='+inviteCode(sv)}catch(e){return '#join='+inviteCode(sv)}};
 function setMember(sid,u,st){const k=sid+'|'+u,old=db.mb[k];db.mb[k]={s:sid,u,st,by:me,m:Math.max(now(),(old?old.m:0)+1)};changed()}
 function modMember(u,st,sid=SVID()){
   if(!u||u===me||isOwner(u,sid)||sid==='official')return;
@@ -1269,31 +1456,42 @@ async function svCreate(){
   db.ch['g'+id]={id:'g'+id,name:'general',s:id,o:t,m:t};
   db.ch['v'+id]={id:'v'+id,name:'voice',vc:1,s:id,o:t+1,m:t};
   db.mb[id+'|'+me]={s:id,u:me,st:'in',m:t};
+  db.sd[id]={id,name,owner:me,o:t,m:t};
+  {const u=db.users[me];u.sj={...(u.sj||{}),[id]:me};bump(u)}
   v.modal=null;v.t='server';v.sv=id;v.ch='g'+id;changed();render();
 }
-function findByCode(code){return Object.values(db.sv).find(x=>!x.del&&x.ic&&x.ic===code)||null}
-const cleanCode=raw=>String(raw).trim().toLowerCase().replace(/^.*join=/,'').replace(/[^a-z0-9]/g,'');
-function joinServer(raw){
-  const code=cleanCode(raw);if(code.length<6)return 'Enter a valid invite code.';
-  const x=findByCode(code);if(!x)return 'That invite code isn’t valid, or it hasn’t reached this device yet. Try again in a moment.';
-  if(isBanned(me,x.id))return 'You’re banned from this server.';
-  if(!isMember(me,x.id))setMember(x.id,me,'in');
-  v.sv=x.id;v.t='server';v.ch=null;return '';
+function parseInvite(raw){
+  const t=String(raw).trim().replace(/^.*join=/,''),m=t.split('~');if(m.length!==3)return null;
+  const [owner,sid,code]=m.map(z=>decodeURIComponent(z).trim().toLowerCase());
+  return /^[a-z0-9._-]{2,20}$/.test(owner)&&/^s[a-z0-9]{4,40}$/.test(sid)&&/^[a-z0-9]{6,20}$/.test(code)?{owner,sid,code}:null;
 }
-function svJoinUI(){const er=document.getElementById('cerr'),msg=joinServer(document.getElementById('svcode').value);if(msg){er.textContent=msg;return}v.modal=null;render()}
+function joinServer(raw){
+  const inv=parseInvite(raw);if(!inv)return Promise.resolve('Enter a valid invite code or link.');
+  if(isBanned(me,inv.sid))return Promise.resolve('You’re banned from this server.');
+  if(isMember(me,inv.sid)){v.sv=inv.sid;v.t='server';v.ch=null;return Promise.resolve('')}
+  if(!NET.sp||!NET.sp.open)return Promise.resolve('Your connection isn’t ready yet. Try again in a few seconds.');
+  return new Promise(res=>{
+    JOINW[inv.sid]={owner:inv.owner,res,t:setTimeout(()=>{delete JOINW[inv.sid];res('Couldn’t reach the server’s owner. The server is stored on their device, so they need to be online to let you in.')},9000)};
+    for(let s=0;s<4;s++){const c=NET.sp.connect(pid(inv.owner,s),{reliable:true});c.on('open',()=>c.send({k:'sv:'+inv.sid,t:'join',u:me,code:inv.code}));c.on('data',d=>onSv(c,d));c.on('error',()=>{})}
+  });
+}
+async function svJoinUI(){const er=document.getElementById('cerr');er.textContent='Connecting to the owner…';const msg=await joinServer(document.getElementById('svcode').value);if(msg){er.textContent=msg;return}v.modal=null;render()}
 function deleteServer(sid){
-  const x=db.sv[sid];if(!x||x.del||!isOwner(me,sid))return;
+  const x=db.sv[sid],d=db.sd[sid];
+  if((!x||x.del)&&(!d||d.del))return;if(!isOwner(me,sid))return;
   for(const id of Object.keys(db.ch)){const c=db.ch[id];if(!c.del&&(c.s||'official')===sid){(db.msgs['official:'+id]||[]).forEach(m=>{if(m.v)delBlob(m.v).catch(()=>{});tomb(m)});c.del=1;bump(c)}}
   if(VC.ch&&vsid()===sid)vcLeave();
-  x.del=1;bump(x);if(v.sv===sid){v.sv='official';v.ch=null}changed();
+  if(x&&!x.del){x.del=1;bump(x)}if(d&&!d.del){d.del=1;bump(d)}
+  if(v.sv===sid){v.sv='official';v.ch=null}changed();
 }
-function leaveServer(sid){if(sid==='official'||isOwner(me,sid))return;if(VC.ch&&vsid()===sid)vcLeave();setMember(sid,me,'out');v.sv='official';v.t='server';v.ch=null}
+function leaveServer(sid){if(sid==='official'||isOwner(me,sid))return;if(VC.ch&&vsid()===sid)vcLeave();setMember(sid,me,'out');svDropMine(sid);v.sv='official';v.t='server';v.ch=null}
 let PEND_INV=null;
-try{const mm=(location.hash||'').match(/join=([a-z0-9]+)/i);if(mm){PEND_INV=mm[1].toLowerCase();history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
+try{const mm=(location.hash||'').match(/join=([^&\s]+)/i);if(mm){PEND_INV=decodeURIComponent(mm[1]);history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
 function checkInvite(){
-  if(!PEND_INV||!me)return;const x=findByCode(PEND_INV);if(!x)return;
-  if(isMember(me,x.id)||isBanned(me,x.id)){PEND_INV=null;return}
-  v.modal={t:'confirm',title:'Join '+x.name+'?',msg:'You’ve been invited to join this server.',btn:'Join server',go:'svjoin',code:PEND_INV};PEND_INV=null;render();
+  if(!PEND_INV||!me)return;const inv=parseInvite(PEND_INV);if(!inv){PEND_INV=null;return}
+  if(isMember(me,inv.sid)||isBanned(me,inv.sid)){PEND_INV=null;return}
+  const d=db.sd[inv.sid];
+  v.modal={t:'confirm',title:'Join '+(d&&!d.del?d.name:'this server')+'?',msg:'You’ve been invited to join this server.',btn:'Join server',go:'svjoin',code:PEND_INV};PEND_INV=null;render();
 }
 
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;bump(r);changed()}}
@@ -1304,20 +1502,25 @@ async function sendVideo(f){
   const id=newId(),cap=document.getElementById('msgin');
   try{await putBlob(id,f)}catch(e){return notice('Video not saved','The video couldn’t be saved. Storage on this device may be full.')}
   (db.msgs[key()]=db.msgs[key()]||[]).push({id:newId(),u:me,t:now(),m:now(),x:cap?cap.value.trim().slice(0,2000):'',v:id,vt:f.type,bn:Math.max(1,Math.ceil(f.size/CH))});
-  if(cap)cap.value='';vurl[id]=URL.createObjectURL(f);changed();uploadVid(id,f);mqPubBlob(id,key());render();
+  if(cap)cap.value='';vurl[id]=URL.createObjectURL(f);changed();if(svOfKey(key())==='official')uploadVid(id,f);mqPubBlob(id,key());render();
 }
 async function delAccount(){
   const n=document.getElementById('delname').value.trim().toLowerCase(),p=document.getElementById('delpw').value,er=document.getElementById('derr'),u=getU(me);
   let ok=false;try{ok=n===me&&p&&await hash(p,u.s)===u.h}catch(e){}
   if(!ok){er.textContent='That username and password don’t match this account.';return}
+  purgeUser(me);save();push();v.modal=null;signOut();
+}
+function purgeUser(u){
   const t=now(),gone=[];
-  for(const x of Object.values(db.sv))if(x.owner===me&&!x.del)deleteServer(x.id);
+  for(const x of Object.values(db.sd))if(x.owner===u&&!x.del)deleteServer(x.id);
+  for(const x of Object.values(db.sv))if(x.owner===u&&!x.del)deleteServer(x.id);
   for(const k of Object.keys(db.msgs)){
-    if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me)){db.msgs[k].forEach(m=>m.v&&gone.push(m.v));delete db.msgs[k]}
-    else for(const m of db.msgs[k])if(m.u===me&&!m.del){if(m.v)gone.push(m.v);tomb(m)}
+    if(k.startsWith('dm:')&&k.slice(3).split('|').includes(u)){db.msgs[k].forEach(m=>m.v&&gone.push(m.v));delete db.msgs[k]}
+    else for(const m of db.msgs[k])if(m.u===u&&!m.del){if(m.v)gone.push(m.v);tomb(m)}
   }
-  for(const f of Object.values(db.fr))if(!f.del&&(f.a===me||f.b===me)){f.del=1;f.m=t}
-  db.users[me]={del:1,m:Math.max(t,(db.users[me].m||0)+1)};save();push();v.modal=null;signOut();
+  for(const f of Object.values(db.fr))if(!f.del&&(f.a===u||f.b===u)){f.del=1;bump(f)}
+  for(const r of Object.values(db.mb))if(r.u===u&&!r.del){r.del=1;bump(r)}
+  db.users[u]={del:1,m:Math.max(t,((db.users[u]||{}).m||0)+1)};
   gone.forEach(id=>delBlob(id).catch(()=>{}));
 }
 async function doLogin(){
@@ -1353,11 +1556,13 @@ root.addEventListener('click',e=>{
   if(a==='svcreate')return svCreate();
   if(a==='svjoin')return svJoinUI();
   if(a==='svmenu'){v.modal={t:'svset',id:SVID()};return render()}
-  if(a==='svrename'){const sid=v.modal.id,x=db.sv[sid],nn=document.getElementById('svren').value.trim().replace(/\s+/g,' ').slice(0,32);if(x&&nn&&isOwner(me,sid)){x.name=nn;bump(x);changed()}return render()}
+  if(a==='svrename'){const sid=v.modal.id,x=db.sv[sid],nn=document.getElementById('svren').value.trim().replace(/\s+/g,' ').slice(0,32);if(x&&nn&&isOwner(me,sid)){x.name=nn;bump(x);if(db.sd[sid]){db.sd[sid].name=nn;bump(db.sd[sid])}changed()}return render()}
   if(a==='svcopy'){const el=document.getElementById('svlink');try{navigator.clipboard.writeText(el.value)}catch(e){el.select()}b.textContent='Copied';return}
   if(a==='svreset'){const sid=v.modal.id,x=db.sv[sid];if(x&&isOwner(me,sid)){x.ic=newCode();bump(x);changed()}return render()}
   if(a==='svunban'){if(can('ban',me,v.modal.id))setMember(v.modal.id,n,'out');return render()}
   if(a==='svkick'||a==='svban'){const sid=SVID();if(n===me||isOwner(n,sid)||sid==='official')return;if(a==='svban'?!can('ban',me,sid):!can('kick',me,sid))return;v.modal={t:'confirm',title:(a==='svban'?'Ban ':'Kick ')+dn(n)+'?',msg:a==='svban'?'They’ll be removed from this server and can’t rejoin until you unban them.':'They’ll be removed from this server. They can rejoin with an invite code.',btn:a==='svban'?'Ban':'Kick',go:a==='svban'?'ban':'kick',id:n,sid};return render()}
+  if(a==='admindel'){if(me!==ADMIN||n===ADMIN||!getU(n))return;v.modal={t:'confirm',title:'Delete '+dn(n)+'’s account?',msg:'This permanently deletes the account, its friendships and its messages in shared channels. Servers they own are deleted too. This can’t be undone.',btn:'Delete account',go:'userdel',id:n};return render()}
+  if(a==='notitoggle'){if(!notiSupported())return;if(Notification.permission==='default'){Notification.requestPermission().then(r=>{notiSet(r==='granted'?'on':'off');render()});return}notiSet(notiPref()==='off'?'on':'off');return render()}
   if(a==='svdelete'){v.modal={t:'confirm',title:'Delete this server?',msg:'Its channels and messages are deleted for everyone. This can’t be undone.',btn:'Delete server',go:'svdel',sid:v.modal.id};return render()}
   if(a==='svleave'){v.modal={t:'confirm',title:'Leave this server?',msg:'You can rejoin later with an invite code.',btn:'Leave server',go:'svleave',sid:v.modal.id};return render()}
   if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope,v.modal.sv);v.modal=null;return render()}
@@ -1409,7 +1614,7 @@ root.addEventListener('click',e=>{
   else if(a==='rperm'&&isOwner(me)){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];bump(r);changed()}}
   else if(a==='chtype'&&v.modal&&v.modal.t==='chname'){v.modal.vc=b.dataset.t==='voice'}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
-  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isOwner(me))doDelRole(m.id);else if(m&&m.go==='kick')modMember(m.id,'out',m.sid);else if(m&&m.go==='ban')modMember(m.id,'ban',m.sid);else if(m&&m.go==='svdel')deleteServer(m.sid);else if(m&&m.go==='svleave')leaveServer(m.sid);else if(m&&m.go==='svjoin'){const er=joinServer(m.code);if(er)return notice('Couldn’t join',er)}}
+  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isOwner(me))doDelRole(m.id);else if(m&&m.go==='kick')modMember(m.id,'out',m.sid);else if(m&&m.go==='ban')modMember(m.id,'ban',m.sid);else if(m&&m.go==='svdel')deleteServer(m.sid);else if(m&&m.go==='userdel'&&me===ADMIN){purgeUser(m.id);changed()}else if(m&&m.go==='svleave')leaveServer(m.sid);else if(m&&m.go==='svjoin'){joinServer(m.code).then(er=>{if(er)notice('Couldn’t join',er);else render()});return}}
   else if(a==='mesave'){
     const m0=v.modal,m=(db.msgs[m0.k]||[]).find(x=>x.id===m0.id),t=document.getElementById('medit').value.trim().slice(0,2000);
     if(!m||m.del||m.u!==me)v.modal=null;
