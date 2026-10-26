@@ -242,12 +242,12 @@ input,textarea{font-size:16px}
    Change it to your own secret BEFORE sharing the site, and never change it afterwards (that starts a new empty chat). */
 const COMPANY_CODE='H4CK13B3RRY';
 const K='hrs_chat_v2',root=document.getElementById('root'),now=()=>Date.now();
-const SECS=['users','roles','ch','fr','sd'];
+const SECS=['users','roles','ch','fr','sd','iv'];
 const bump=r=>{r.m=Math.max(now(),(r.m||0)+1);return r};
 let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
 try{me=localStorage.getItem('hrs_me')}catch(e){}
 function norm(d){
-  for(const s of ['users','roles','ch','fr','sv','mb','sd','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
+  for(const s of ['users','roles','ch','fr','sv','mb','sd','iv','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
   d.roles.employee=d.roles.employee||{id:'employee',name:'Employee',color:'#5865f2',m:1};
   d.ch.general=d.ch.general||{id:'general',name:'general',o:1,m:1};
   d.ch.announcements=d.ch.announcements||{id:'announcements',name:'announcements',a:1,o:2,m:1};
@@ -279,7 +279,7 @@ const dnS=(n,sid=SVID())=>{const u=db.users[n];if(!u||u.del)return n;const x=sni
 const nm=n=>v.t==='server'?dnS(n):dn(n);
 const OWNER={name:'Owner',color:'#f0b232'};
 const roleList=(sid=SVID())=>Object.keys(db.roles).filter(id=>!db.roles[id].del&&(db.roles[id].s||'official')===sid).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nick','Manage nicknames'],['snick','Change own server nickname'],['kick','Kick members'],['ban','Ban members'],['invite','See the invite code'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nick','Manage nicknames'],['snick','Change own server nickname'],['kick','Kick members'],['ban','Ban members'],['invite','Invite people'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
 const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
 function roleIds(n,sid=SVID()){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>{const r=db.roles[id];return r&&!r.del&&(r.s||'official')===sid});return ids.length||n===ADMIN||sid!=='official'?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
 function rolesOf(n,sid=SVID()){const r=isOwner(n,sid)?[OWNER]:[];roleIds(n,sid).forEach(id=>r.push(db.roles[id]));return r}
@@ -383,12 +383,12 @@ function push(){
 }
 function mergeIn(p,dmKey,svid){
   if(!p||typeof p!=='object')return false;
-  let ch=false;const live=[],sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
+  let ch=false;const live=[],ivNew=[],sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
   if(!dmKey)for(const s of (svid?['sv','mb','ch','roles']:SECS)){
     const r=p[s];if(!r||typeof r!=='object')continue;
     for(const id in r){if(!okId(id)||!sane(r[id]))continue;const a=db[s][id];
       if(svid){if(s==='sv'?id!==svid:r[id].s!==svid)continue}else if((s==='roles'||s==='ch')&&r[id].s&&r[id].s!=='official')continue;
-      if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true}}
+      if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(s==='iv'&&!validIv(r[id]))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true;if(s==='iv'&&!a&&r[id].to===me&&!r[id].del&&Date.now()>BURST)ivNew.push(r[id])}}
   }
   const mk=p.msgs&&typeof p.msgs==='object'?p.msgs:{};
   for(const k in mk){
@@ -409,7 +409,7 @@ function mergeIn(p,dmKey,svid){
     }
     if(add)L.sort((x,y)=>x.t-y.t);
   }
-  if(ch){applyDir();save();if(me&&!getU(me)){signOut();return true}renderSoon();live.forEach(([k,n])=>{try{notifyMsg(k,n)}catch(e){}})}
+  if(ch){applyDir();save();if(me&&!getU(me)){signOut();return true}renderSoon();live.forEach(([k,n])=>{try{notifyMsg(k,n)}catch(e){}});ivNew.forEach(r=>{try{notifyInvite(r)}catch(e){}})}
   return ch;
 }
 function onHub(c,d){
@@ -581,6 +581,27 @@ function svPush(since){
 const svConns=sid=>{const o=[];if(SVH[sid])for(const c of SVH[sid])if(c.open)o.push(c);for(const ck in dmc)if(ck.startsWith('svc:'+sid+'#')&&dmc[ck].open)o.push(dmc[ck]);return o};
 async function svPutBlob(sid,id){const b=await getBlob(id);if(!b||b.size>16*1024*1024)return;const buf=await b.arrayBuffer();for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'putb',u:me,id,ty:b.type,buf})}
 function svWantBlob(sid,id,type){if(SWANT[id]&&Date.now()-SWANT[id].t0<8000)return;SWANT[id]={sid,type,t0:Date.now()};for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'getb',u:me,id})}
+const IVD=7*864e5;
+const validIv=r=>r&&typeof r==='object'&&['to','from','owner'].every(k=>typeof r[k]==='string'&&/^[a-z0-9._-]{2,20}$/.test(r[k]))&&okId(r.sid)&&typeof r.name==='string'&&r.name.length<=32&&typeof r.code==='string'&&/^[a-z0-9]{6,20}$/.test(r.code);
+const myInvites=()=>me?Object.values(db.iv).filter(r=>!r.del&&r.to===me&&now()-r.m<IVD&&svRec(r.sid)&&!isMember(me,r.sid)&&!isBanned(me,r.sid)).sort((a,b)=>b.m-a.m):[];
+const invServers=()=>Object.values(db.sv).filter(x=>!x.del&&x.ic&&isMember(me,x.id)&&(isOwner(me,x.id)||can('invite',me,x.id)));
+function sendInvite(sid,to){
+  const x=db.sv[sid],tn=String(to||'').trim().toLowerCase().replace(/^@/,'');
+  if(!x||x.del||sid==='official')return 'Pick a server you can invite people to.';
+  if(!x.ic||!(isOwner(me,sid)||can('invite',me,sid)))return 'You don’t have permission to invite people to this server.';
+  if(!tn)return 'Enter a username.';
+  if(!getU(tn))return 'No employee “'+tn+'” has an account yet.';
+  if(tn===me||isMember(tn,sid))return dn(tn)+' is already in this server.';
+  if(isBanned(tn,sid))return dn(tn)+' is banned from this server.';
+  const id=sid+'|'+tn,old=db.iv[id];
+  db.iv[id]={id,to:tn,from:me,sid,owner:x.owner,name:x.name,code:x.ic,m:Math.max(now(),(old?old.m:0)+1)};
+  changed();return '';
+}
+function notifyInvite(r){
+  const title=dn(r.from)+' invited you to join '+r.name,body='Open the + menu to accept.';
+  if(!active()&&notiOn()){try{const n=new Notification(title,{body,tag:'hrs-inv-'+r.sid,renotify:true});n.onclick=()=>{try{window.focus()}catch(e){}openRoom('inv');n.close()}}catch(e){}}
+  else toast(title,body,'inv');
+}
 function applyDir(){for(const id in db.sd){if(!db.sd[id].del)continue;const x=db.sv[id];if(x&&!x.del){x.del=1;bump(x);for(const cid in db.ch)if(db.ch[cid].s===id&&!db.ch[cid].del){db.ch[cid].del=1;bump(db.ch[cid])}}}}
 
 /* ---------- shared relay: encrypted, retained messages so every device sees everything ---------- */
@@ -642,7 +663,7 @@ function mqIn(o,pair){
     if(!pair||o.k!=='dm:'+pair)return;
     MQ.dbuf=MQ.dbuf||{};(MQ.dbuf[o.k]=MQ.dbuf[o.k]||[]).push(o.r);
   }else{
-    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},sd:{},msgs:{}};
+    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},sd:{},iv:{},msgs:{}};
     if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
     else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
   }
@@ -1143,6 +1164,7 @@ const notiPref=()=>{try{return localStorage.getItem('hrs_noti_'+me)}catch(e){ret
 const notiSet=x=>{try{localStorage.setItem('hrs_noti_'+me,x)}catch(e){}};
 const notiOn=()=>notiSupported()&&Notification.permission==='granted'&&notiPref()!=='off';
 function openRoom(k){
+  if(k==='inv'){v.modal={t:'svadd'};render();return}
   if(k.startsWith('dm:')){const o=k.slice(3).split('|').find(x=>x!==me);if(!o)return;v.t='dm';v.peer=o}
   else{const id=k.slice(9),c=db.ch[id];if(!c)return;v.t='server';v.sv=c.s||'official';v.ch=id}
   v.nav=false;render();
@@ -1266,6 +1288,7 @@ function modalHtml(){
      act=(g?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="global">${self?'Change nickname':'Manage nickname'}</button>`:'')+(sv?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="server">${self?'Change server nickname':'Manage server nickname'}</button>`:'')+act}
     {const sid=SVID(),ok=v.t==='server'&&sid!=='official'&&!self&&isMember(n,sid)&&!isOwner(n,sid);if(ok&&can('kick',me,sid))act+=`<button class="btn no" data-a="svkick" data-n="${N}">Kick</button>`;if(ok&&can('ban',me,sid))act+=`<button class="btn no" data-a="svban" data-n="${N}">Ban</button>`}
     if(me===ADMIN&&!self&&n!==ADMIN)act+=`<button class="btn no" data-a="admindel" data-n="${N}">Delete account</button>`;
+    if(!self&&invServers().some(x=>!isMember(n,x.id)&&!isBanned(n,x.id)))act+=`<button class="btn sec" data-a="invpick" data-n="${N}">Invite to server…</button>`;
     if(self&&notiSupported())act+=`<button class="btn sec" data-a="notitoggle">${Notification.permission==='denied'?'Notifications blocked by browser':(notiOn()?'Notifications: on':'Notifications: off')}</button>`;
     const have=Array.isArray(t.roles)?t.roles:[];
     const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
@@ -1299,13 +1322,18 @@ function modalHtml(){
     const t=getU(m.n);if(!t)return '';const sv=m.scope==='server',cur=sv?snickOf(t,m.sv||SVID()):t.nick;
     c=`<h2>${sv?(m.n===me?'Change your server nickname':'Server nickname for '+esc(dn(m.n))):(m.n===me?'Change your nickname':'Nickname for '+esc(dn(m.n)))}</h2><p class="mp">${sv?'A server nickname is only shown inside the Official server (channels, members and voice). Everywhere else the regular nickname is used.':'Your nickname is shown instead of the username in chats. The username (<b>@'+esc(m.n)+'</b>) doesn’t change and is still used to sign in and for @mentions.'}</p><input id="nickin" value="${esc(m.draft??(cur||''))}" placeholder="${esc(sv?dn(m.n):m.n)}" maxlength="32" autocomplete="off" aria-label="${sv?'Server nickname':'Nickname'}"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button>${cur?'<button class="btn sec" data-a="nickreset">Reset</button>':''}<button class="btn" data-a="nicksave">Save</button></div>`;
   }else if(m.t==='svadd'){
-    c=`<h2>Add a server</h2><div class="cap">Create your own</div><div class="addbox"><input id="svname" placeholder="Server name" maxlength="32" aria-label="Server name"><button class="btn" data-a="svcreate">Create</button></div><span class="sub">You’ll be the owner, with full control of its channels, roles and members.</span><div class="cap">Join with an invite</div><div class="addbox"><input id="svcode" placeholder="Invite code or link" aria-label="Invite code"><button class="btn" data-a="svjoin">Join</button></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Close</button></div>`;
+    const ivs=myInvites();
+    c=`<h2>Add a server</h2>${ivs.length?`<div class="cap">Invitations (${ivs.length})</div>${ivs.map(r=>`<div class="row" style="padding:6px 0"><div class="nm">${esc(r.name)}<span class="sub">from ${esc(dn(r.from))}</span></div><button class="btn" data-a="ivacc" data-n="${esc(r.id)}">Accept</button><button class="btn no" data-a="ivdec" data-n="${esc(r.id)}">Decline</button></div>`).join('')}`:''}<div class="cap">Create your own</div><div class="addbox"><input id="svname" placeholder="Server name" maxlength="32" aria-label="Server name"><button class="btn" data-a="svcreate">Create</button></div><span class="sub">You’ll be the owner, with full control of its channels, roles and members.</span><div class="cap">Join with an invite</div><div class="addbox"><input id="svcode" placeholder="Invite code or link" aria-label="Invite code"><button class="btn" data-a="svjoin">Join</button></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Close</button></div>`;
+  }else if(m.t==='invpick'){
+    const t=m.n,l=invServers().filter(x=>!isMember(t,x.id)&&!isBanned(t,x.id));
+    c=`<h2>Invite ${esc(dn(t))}</h2><p class="mp">Pick a server to invite them to. They’ll see the invitation next to the + button.</p>${l.length?l.map(x=>`<div class="row" style="padding:6px 0"><span class="nm">${esc(x.name)}</span><button class="btn" data-a="ivsend" data-n="${esc(x.id)}" data-u="${esc(t)}">Invite</button></div>`).join(''):'<div class="empty">There’s no server you can invite them to.</div>'}<div id="cerr" class="note"></div><div class="acts"><button class="btn sec" data-a="mclose">Close</button></div>`;
   }else if(m.t==='svset'){
     const sid=m.id,x=svRec(sid);if(!x)return '';
     const own=isOwner(me,sid),off=sid==='official',bans=Object.values(db.mb).filter(r=>r.s===sid&&r.st==='ban'&&!r.del);
     c=`<h2>${esc(x.name)}</h2>${off?'<p class="mp">The Official server is required for everyone and can’t be left.</p>':''}${!off&&me===ADMIN&&x.owner!==ADMIN?'<p class="sub">You’re managing this server as the site owner.</p>':''}
     ${own&&!off?`<div class="cap">Server name</div><div class="addbox"><input id="svren" value="${esc(x.name)}" maxlength="32" aria-label="Server name"><button class="btn" data-a="svrename">Save</button></div>`:''}
     ${!off&&(own||can('invite',me,sid))&&x.ic?`<div class="cap">Invite people</div><div class="addbox"><input id="svlink" readonly value="${esc(inviteLink(x))}" aria-label="Invite link"><button class="btn" data-a="svcopy">Copy</button></div><span class="sub">Code: <b>${esc(inviteCode(x))}</b> · anyone with it can join while your device is online, unless banned.</span>${own?'<div class="acts"><button class="btn sec" data-a="svreset">New invite code</button></div>':''}`:''}
+    ${!off&&x.ic&&(own||can('invite',me,sid))?`<div class="cap">Send an invite</div><div class="addbox"><input id="ivto" placeholder="Username" autocomplete="off" aria-label="Username to invite"><button class="btn" data-a="ivsend" data-n="${esc(sid)}">Invite</button></div><div id="cerr" class="note"></div><div class="chips">${friendsOf(me).filter(f=>!isMember(f,sid)&&!isBanned(f,sid)).slice(0,8).map(f=>`<button class="chip" style="--c:#5865f2" data-a="ivsend" data-n="${esc(sid)}" data-u="${esc(f)}">${esc(dn(f))}</button>`).join('')}</div>`:''}
     ${!off&&can('ban',me,sid)?`<div class="cap">Banned (${bans.length})</div>${bans.length?bans.map(r=>`<div class="row" style="padding:6px 0"><span class="nm">${esc(dn(r.u))}</span><button class="btn sec" data-a="svunban" data-n="${esc(r.u)}">Unban</button></div>`).join(''):'<span class="sub">Nobody is banned.</span>'}`:''}
     <div class="acts">${!off&&!own?'<button class="btn no" data-a="svleave">Leave server</button>':''}${!off&&own?'<button class="btn no" data-a="svdelete">Delete server</button>':''}<button class="btn sec" data-a="mclose">Close</button></div>`;
   }else if(m.t==='confirm'){
@@ -1342,14 +1370,14 @@ function render(){
   const du=fr.map(n=>({n,c:unreadDM(n)})).filter(x=>x.c>0),um=Object.fromEntries(du.map(x=>[x.n,x.c]));
   const allCh=Object.keys(db.ch).map(id=>chan(id)).filter(x=>x&&canSee(x)),pm=Object.fromEntries(allCh.map(x=>[x.id,pingCount('official:'+x.id)])),sp=Object.values(pm).reduce((a,b)=>a+b,0),spBy={};
   allCh.forEach(x=>{const k=x.s||'official';spBy[k]=(spBy[k]||0)+pm[x.id]});
-  const bd=n=>n?`<span class="badge">${n>9?'9+':n}</span>`:'';
+  const bd=n=>n?`<span class="badge">${n>9?'9+':n}</span>`:'',ivc=myInvites().length;
   const svBtns=servers().map(x=>x.id==='official'?`<button class="ric logo ${v.t==='server'&&SVID()==='official'?'on':''}" data-a="sv" data-n="official" title="Official" aria-label="Official server">hrs${bd(spBy.official)}</button>`:`<button class="ric ${v.t==='server'&&SVID()===x.id?'on':''}" data-a="sv" data-n="${esc(x.id)}" title="${esc(x.name)}" aria-label="${esc(x.name)} server" style="background:hsl(${hue(x.id)} 45% 38%);color:#fff;font-weight:700;font-size:17px">${esc(Array.from(x.name)[0]||'?')}${bd(spBy[x.id])}</button>`).join('');
-  UNR=du.reduce((a,x)=>a+x.c,0)+sp;document.title=(UNR?'('+UNR+') ':'')+'hrs chat';
+  UNR=du.reduce((a,x)=>a+x.c,0)+sp+ivc;document.title=(UNR?'('+UNR+') ':'')+'hrs chat';
   const dmav=du.slice(0,6).map(x=>`<button class="ric dmav" data-a="dm" data-n="${esc(x.n)}" title="${esc(dn(x.n))}" aria-label="Unread messages from ${esc(dn(x.n))}">${av(x.n)}<span class="badge">${x.c>9?'9+':x.c}</span></button>`).join('');
   const rail=`<nav class="rail" aria-label="Servers">
     <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>${dmav}
     <div class="sep"></div>
-    ${svBtns}<button class="ric" data-a="svadd" title="Create or join a server" aria-label="Create or join a server" style="color:var(--green);font-size:26px">+</button><div class="nst"></div></nav>`;
+    ${svBtns}<button class="ric" data-a="svadd" title="Create or join a server" aria-label="Create or join a server" style="color:var(--green);font-size:26px">+${bd(ivc)}</button><div class="nst"></div></nav>`;
   let side,main;
   const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(nm(me))}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
   if(v.t==='server'){
@@ -1563,6 +1591,20 @@ root.addEventListener('click',e=>{
   if(a==='svkick'||a==='svban'){const sid=SVID();if(n===me||isOwner(n,sid)||sid==='official')return;if(a==='svban'?!can('ban',me,sid):!can('kick',me,sid))return;v.modal={t:'confirm',title:(a==='svban'?'Ban ':'Kick ')+dn(n)+'?',msg:a==='svban'?'They’ll be removed from this server and can’t rejoin until you unban them.':'They’ll be removed from this server. They can rejoin with an invite code.',btn:a==='svban'?'Ban':'Kick',go:a==='svban'?'ban':'kick',id:n,sid};return render()}
   if(a==='admindel'){if(me!==ADMIN||n===ADMIN||!getU(n))return;v.modal={t:'confirm',title:'Delete '+dn(n)+'’s account?',msg:'This permanently deletes the account, its friendships and its messages in shared channels. Servers they own are deleted too. This can’t be undone.',btn:'Delete account',go:'userdel',id:n};return render()}
   if(a==='notitoggle'){if(!notiSupported())return;if(Notification.permission==='default'){Notification.requestPermission().then(r=>{notiSet(r==='granted'?'on':'off');render()});return}notiSet(notiPref()==='off'?'on':'off');return render()}
+  if(a==='invpick'){if(!getU(n)||n===me)return;v.modal={t:'invpick',n};return render()}
+  if(a==='ivsend'){
+    const to=b.dataset.u||(document.getElementById('ivto')||{}).value,er=sendInvite(n,to),el=document.getElementById('cerr');
+    if(el){el.className='note '+(er?'er':'ok');el.textContent=er||'Invite sent to '+dn(String(to).trim().toLowerCase().replace(/^@/,''))+'.'}
+    if(!er&&b.dataset.u){b.disabled=true;b.textContent='Invited ✓'}
+    return;
+  }
+  if(a==='ivacc'){
+    const r=db.iv[n],el=document.getElementById('cerr');if(!r||r.to!==me)return;
+    if(el){el.className='note';el.textContent='Connecting to the owner…'}
+    joinServer(r.owner+'~'+r.sid+'~'+r.code).then(er=>{if(er){const e2=document.getElementById('cerr');if(e2){e2.className='note er';e2.textContent=er}return}r.del=1;bump(r);changed();v.modal=null;render()});
+    return;
+  }
+  if(a==='ivdec'){const r=db.iv[n];if(r&&r.to===me){r.del=1;bump(r);changed()}return render()}
   if(a==='svdelete'){v.modal={t:'confirm',title:'Delete this server?',msg:'Its channels and messages are deleted for everyone. This can’t be undone.',btn:'Delete server',go:'svdel',sid:v.modal.id};return render()}
   if(a==='svleave'){v.modal={t:'confirm',title:'Leave this server?',msg:'You can rejoin later with an invite code.',btn:'Leave server',go:'svleave',sid:v.modal.id};return render()}
   if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope,v.modal.sv);v.modal=null;return render()}
