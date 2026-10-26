@@ -217,6 +217,7 @@ input,textarea{font-size:16px}
 .screenview video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
 .svbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(17,18,20,.94);color:#fff}
 .svbtns{display:flex;gap:8px;flex-wrap:wrap}
+.shead.tap{cursor:pointer}.shead.tap:hover{background:var(--hover)}
 </style>
 </head>
 <body>
@@ -234,11 +235,12 @@ input,textarea{font-size:16px}
    Change it to your own secret BEFORE sharing the site, and never change it afterwards (that starts a new empty chat). */
 const COMPANY_CODE='H4CK13B3RRY';
 const K='hrs_chat_v2',root=document.getElementById('root'),now=()=>Date.now();
+const SECS=['users','roles','ch','fr','sv','mb'];
 const bump=r=>{r.m=Math.max(now(),(r.m||0)+1);return r};
 let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
 try{me=localStorage.getItem('hrs_me')}catch(e){}
 function norm(d){
-  for(const s of ['users','roles','ch','fr','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
+  for(const s of ['users','roles','ch','fr','sv','mb','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
   d.roles.employee=d.roles.employee||{id:'employee',name:'Employee',color:'#5865f2',m:1};
   d.ch.general=d.ch.general||{id:'general',name:'general',o:1,m:1};
   d.ch.announcements=d.ch.announcements||{id:'announcements',name:'announcements',a:1,o:2,m:1};
@@ -265,22 +267,34 @@ const getU=n=>{const u=db.users[n];return u&&!u.del&&u.h?u:null};
 const users=()=>Object.keys(db.users).filter(getU).sort();
 const U=()=>db.users[me];
 const dn=n=>{const u=db.users[n];return u&&!u.del&&typeof u.nick==='string'&&u.nick.trim()?u.nick.slice(0,32):n};
-const dnS=n=>{const u=db.users[n];return u&&!u.del&&typeof u.snick==='string'&&u.snick.trim()?u.snick.slice(0,32):dn(n)};
+const snickOf=(u,sid)=>!u?'':typeof u.snick==='string'?(sid==='official'?u.snick:''):(u.snick&&typeof u.snick==='object'&&typeof u.snick[sid]==='string'?u.snick[sid]:'');
+const dnS=(n,sid=SVID())=>{const u=db.users[n];if(!u||u.del)return n;const x=snickOf(u,sid);return x&&x.trim()?x.slice(0,32):dn(n)};
 const nm=n=>v.t==='server'?dnS(n):dn(n);
 const OWNER={name:'Owner',color:'#f0b232'};
-const roleList=()=>Object.keys(db.roles).filter(id=>!db.roles[id].del).map(id=>({...db.roles[id],id}));
-const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nick','Manage nicknames'],['snick','Change own server nickname'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
+const roleList=(sid=SVID())=>Object.keys(db.roles).filter(id=>!db.roles[id].del&&(db.roles[id].s||'official')===sid).map(id=>({...db.roles[id],id}));
+const PERMS=[['video','Send videos'],['announce','Post announcements'],['delmsg','Delete messages'],['chan','Manage channels'],['assign','Assign roles'],['bypass','Bypass slowmode'],['nick','Manage nicknames'],['snick','Change own server nickname'],['kick','Kick members'],['ban','Ban members'],['invite','See the invite code'],['screen','Share screen in voice channels'],['poll','Create polls'],['pingall','Ping @everyone'],['nohistory','Can’t view chat history',1]];
 const SLOWS=[[0,'Off'],[5,'5s'],[10,'10s'],[30,'30s'],[60,'1m'],[300,'5m'],[900,'15m'],[3600,'1h']];
-function roleIds(n){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>db.roles[id]&&!db.roles[id].del);return ids.length||n===ADMIN?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
-function rolesOf(n){const r=n===ADMIN?[OWNER]:[];roleIds(n).forEach(id=>r.push(db.roles[id]));return r}
-const hasP=(p,n=me)=>roleIds(n).some(id=>db.roles[id].p&&db.roles[id].p[p]===true);
-const can=(p,n=me)=>n===ADMIN||hasP(p,n);
-const inList=(l,n)=>Array.isArray(l)&&l.length&&roleIds(n).some(id=>l.includes(id));
-const canSee=(c,n=me)=>n===ADMIN||!Array.isArray(c.vis)||!c.vis.length||inList(c.vis,n);
-const canPost=(c,n=me)=>canSee(c,n)&&(!c.a||can('announce',n))&&(n===ADMIN||!Array.isArray(c.post)||!c.post.length||inList(c.post,n));
+function roleIds(n,sid=SVID()){const u=getU(n)||{},ids=(Array.isArray(u.roles)?u.roles:[]).filter(id=>{const r=db.roles[id];return r&&!r.del&&(r.s||'official')===sid});return ids.length||n===ADMIN||sid!=='official'?ids:(db.roles.employee&&!db.roles.employee.del?['employee']:[])}
+function rolesOf(n,sid=SVID()){const r=isOwner(n,sid)?[OWNER]:[];roleIds(n,sid).forEach(id=>r.push(db.roles[id]));return r}
+const hasP=(p,n=me,sid=SVID())=>roleIds(n,sid).some(id=>db.roles[id].p&&db.roles[id].p[p]===true);
+const can=(p,n=me,sid=SVID())=>isOwner(n,sid)||hasP(p,n,sid);
+const inList=(l,n,sid=SVID())=>Array.isArray(l)&&l.length&&roleIds(n,sid).some(id=>l.includes(id));
+const canSee=(c,n=me)=>{const sid=c.s||'official';return isMember(n,sid)&&(isOwner(n,sid)||!Array.isArray(c.vis)||!c.vis.length||inList(c.vis,n,sid))};
+const canPost=(c,n=me)=>{const sid=c.s||'official';return canSee(c,n)&&(!c.a||can('announce',n,sid))&&(isOwner(n,sid)||!Array.isArray(c.post)||!c.post.length||inList(c.post,n,sid))};
 const rc=n=>{const r=rolesOf(n)[0];return r?col(r.color):'#fff'};
-const chans=()=>Object.keys(db.ch).filter(id=>!db.ch[id].del).map(id=>({...db.ch[id],id})).sort((a,b)=>a.o-b.o);
+const chans=(sid=SVID())=>Object.keys(db.ch).filter(id=>!db.ch[id].del&&(db.ch[id].s||'official')===sid).map(id=>({...db.ch[id],id})).sort((a,b)=>a.o-b.o);
 const chan=id=>{const c=db.ch[id];return c&&!c.del?{...c,id}:null};
+/* ---- servers: Official is built in; others are created by users ---- */
+const SVID=()=>v.sv||'official';
+const svRec=sid=>sid==='official'?{id:'official',name:'Official',owner:ADMIN}:(db.sv[sid]&&!db.sv[sid].del?db.sv[sid]:null);
+const isOwner=(n,sid=SVID())=>n===ADMIN||(sid!=='official'&&!!db.sv[sid]&&db.sv[sid].owner===n);
+const isMember=(n,sid)=>{if(!getU(n))return false;if(sid==='official')return true;const s=svRec(sid);if(!s)return false;if(n===ADMIN||s.owner===n)return true;const r=db.mb[sid+'|'+n];return !!(r&&r.st==='in'&&!r.del)};
+const isBanned=(n,sid)=>{const r=db.mb[sid+'|'+n];return !!(r&&r.st==='ban'&&!r.del)};
+const servers=()=>{const l=[svRec('official')];Object.values(db.sv).filter(x=>!x.del&&okId(x.id)&&(me===ADMIN||isMember(me,x.id))).sort((a,b)=>a.o-b.o).forEach(x=>l.push(x));return l};
+const memberUsers=sid=>users().filter(n=>isMember(n,sid));
+const svOfKey=k=>k.startsWith('official:')?((db.ch[k.slice(9)]||{}).s||'official'):'official';
+const vsid=()=>(db.ch[VC.ch]||{}).s||'official';
+
 const fk=(a,b)=>[a,b].sort().join('|');
 const edges=n=>Object.values(db.fr).filter(f=>!f.del&&(f.a===n||f.b===n));
 const oth=(f,n)=>f.a===n?f.b:f.a;
@@ -338,11 +352,11 @@ function connectHub(){
 }
 function pick(since){
   const p={msgs:{}};
-  for(const s of ['users','roles','ch','fr']){p[s]={};for(const id in db[s])if(db[s][id].m>=since)p[s][id]=db[s][id]}
+  for(const s of SECS){p[s]={};for(const id in db[s])if(db[s][id].m>=since)p[s][id]=db[s][id]}
   for(const k in db.msgs)if(k.startsWith('official:')){const l=db.msgs[k].filter(m=>m.m>=since);if(l.length)p.msgs[k]=l}
   return p;
 }
-const isEmpty=p=>!Object.keys(p.msgs).length&&['users','roles','ch','fr'].every(s=>!Object.keys(p[s]).length);
+const isEmpty=p=>!Object.keys(p.msgs).length&&SECS.every(s=>!Object.keys(p[s]).length);
 function changed(){save();clearTimeout(pushTm);pushTm=setTimeout(push,120)}
 function push(){
   clearTimeout(pushTm);const since=NET.last;NET.last=now();
@@ -358,7 +372,7 @@ function push(){
 function mergeIn(p,dmKey){
   if(!p||typeof p!=='object')return false;
   let ch=false;const sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
-  if(!dmKey)for(const s of ['users','roles','ch','fr']){
+  if(!dmKey)for(const s of SECS){
     const r=p[s];if(!r||typeof r!=='object')continue;
     for(const id in r){if(!okId(id)||!sane(r[id]))continue;const a=db[s][id];
       if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true}}
@@ -480,13 +494,13 @@ async function mqPubDM(k,m){
   for(const c of MQ.cl)if(c.connected)c.publish(`${MQ.ns}/dm/${a}/${b}/${m.id}`,pl,{qos:1,retain:true});
 }
 function mqPush(p){
-  for(const s of ['users','roles','ch','fr'])for(const id in p[s])mqPub(s,id,p[s][id]);
+  for(const s of SECS)for(const id in p[s])mqPub(s,id,p[s][id]);
   for(const k in p.msgs)for(const m of p.msgs[k])mqPub('msg',m.id,m,k);
 }
 function mqSubDM(c){if(me&&c.connected){BURST=Date.now()+6000;c.subscribe([`${MQ.ns}/dm/${me}/+/+`,`${MQ.ns}/dm/+/${me}/+`,`${MQ.ns}/typing/dm/${me}/+`,`${MQ.ns}/typing/dm/+/${me}`],{qos:1})}}
 const mqSubAll=()=>MQ.cl.forEach(mqSubDM);
 function mqSync(){const p=pick(0);const keep=(sec,id,r)=>!(MQ.seen[sec+'/'+id]>=r.m);
-  const q={msgs:{}};for(const s of ['users','roles','ch','fr']){q[s]={};for(const id in p[s])if(keep(s,id,p[s][id]))q[s][id]=p[s][id]}
+  const q={msgs:{}};for(const s of SECS){q[s]={};for(const id in p[s])if(keep(s,id,p[s][id]))q[s][id]=p[s][id]}
   for(const k in p.msgs){const l=p.msgs[k].filter(m=>keep('msg',m.id,m));if(l.length)q.msgs[k]=l}
   if(!isEmpty(q))mqPush(q);
   if(me)for(const k in db.msgs)if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me))for(const m of db.msgs[k])if(keep('dm',m.id,m))mqPubDM(k,m)}
@@ -496,7 +510,7 @@ function mqIn(o,pair){
     if(!pair||o.k!=='dm:'+pair)return;
     MQ.dbuf=MQ.dbuf||{};(MQ.dbuf[o.k]=MQ.dbuf[o.k]||[]).push(o.r);
   }else{
-    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},msgs:{}};
+    MQ.buf=MQ.buf||{users:{},roles:{},ch:{},fr:{},sv:{},mb:{},msgs:{}};
     if(o.s==='msg'){if(typeof o.k!=='string')return;(MQ.buf.msgs[o.k]=MQ.buf.msgs[o.k]||[]).push(o.r)}
     else if(MQ.buf[o.s]&&o.s!=='msgs')MQ.buf[o.s][o.id]=o.r;else return;
   }
@@ -510,7 +524,7 @@ async function mqInit(){
   MQ.ns='hrs/'+hx(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('ns:'+COMPANY_CODE)))).slice(0,24);
   for(const url of BROKERS){
     const c=mqtt.connect(url,{clientId:'hrs_'+newId(),clean:true,reconnectPeriod:4000,connectTimeout:10000,keepalive:30});
-    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe(['users','roles','ch','fr','msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+',MQ.ns+'/vc/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubBlob(id,k));status()},2500)});
+    c.on('connect',()=>{BURST=Date.now()+6000;c.subscribe([...SECS,'msg'].map(x=>MQ.ns+'/'+x+'/#').concat(MQ.ns+'/typing/ch/+',MQ.ns+'/vc/+'),{qos:1});mqSubDM(c);Object.keys(MQ.want).forEach(id=>c.subscribe(`${MQ.ns}/blob/${id}/+`,{qos:1}));status();clearTimeout(MQ.rt);MQ.rt=setTimeout(()=>{MQ.ready=true;mqSync();MQ.pend.splice(0).forEach(([id,k])=>mqPubBlob(id,k));status()},2500)});
     c.on('message',async(t,buf)=>{try{
       const p=t.split('/');
       if(p[2]==='blob'){
@@ -553,7 +567,7 @@ async function signIn(name,pw){
   }
   me=name;SINCE=now();try{localStorage.setItem('hrs_me',me)}catch(e){}
   v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
-  rdLoad();startSelf();mqSubAll();setTimeout(mqSync,2500);render();return '';
+  rdLoad();setTimeout(checkInvite,3000);setTimeout(checkInvite,8000);startSelf();mqSubAll();setTimeout(mqSync,2500);render();return '';
 }
 function addFriend(raw){
   const n=raw.trim().toLowerCase().replace(/^@/,'');
@@ -569,7 +583,7 @@ function addFriend(raw){
 function accept(n){const f=db.fr[fk(me,n)];if(!f)return;f.st='ok';f.keep=Math.random()<.5?me:n;bump(f);changed()}
 function dropEdge(n){const f=db.fr[fk(me,n)];if(!f)return;f.del=1;bump(f);changed()}
 const slowSecs=c=>Math.min(86400,Math.max(0,Number(c&&c.slow)||0));
-const slowExempt=c=>can('bypass')||inList(c&&c.slowx,me);
+const slowExempt=c=>can('bypass',me,(c&&c.s)||'official')||inList(c&&c.slowx,me,(c&&c.s)||'official');
 function slowLeft(c){
   const sl=slowSecs(c);if(!sl||slowExempt(c))return 0;
   const l=msgsOf('official:'+c.id).filter(m=>m.u===me).pop();
@@ -593,7 +607,7 @@ function fmt(ts){
 /* ---------- views ---------- */
 /* ---------- Discord-style markdown + link embeds ---------- */
 const link=(u,t)=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer nofollow">${esc(t)}</a>`;
-function md(src,author){
+function md(src,author,sid){
   const K=[],H=h=>'\u0000'+(K.push(h)-1)+'\u0000';
   let t=String(src).replace(/\u0000/g,'');
   t=t.replace(/```(?:[\w+-]{1,20}\n)?([\s\S]*?)```/g,(m,c)=>H(`<pre class="cb"><code>${esc(c.replace(/^\n+|\n+$/g,''))}</code></pre>`));
@@ -601,7 +615,7 @@ function md(src,author){
   t=t.replace(/\[([^\]\n]{1,100})\]\((https?:\/\/[^\s)]{1,500})\)/g,(m,x,u)=>H(link(u,x)));
   t=t.replace(/<(https?:\/\/[^\s>]{1,500})>|(https?:\/\/[^\s<]{1,500}[^\s<.,;:!?)\]'"])/g,(m,a,b)=>{const u=a||b;return H(link(u,u))});
   t=t.replace(/\\([\\*_~|`>#\[\]()-])/g,(m,c)=>H(esc(c)));
-  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>(getU(n)||(n==='everyone'&&author&&can('pingall',author)))?p+H(`<span class="mention" title="@${esc(n)}">@${esc(nm(n))}</span>`):m);
+  t=t.replace(/(^|[\s(])@([a-z0-9._-]{2,20})(?![\w.-])/g,(m,p,n)=>(getU(n)||(n==='everyone'&&author&&can('pingall',author,sid||'official')))?p+H(`<span class="mention" title="@${esc(n)}">@${esc(nm(n))}</span>`):m);
   t=esc(t);
   const inl=x=>x
     .replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>')
@@ -652,14 +666,14 @@ const active=()=>document.visibilityState==='visible'&&(!document.hasFocus||docu
 const isNew=(m,t)=>m.t>t||m.at>=t;
 function markRead(){if(!me||!active())return;if(v.t==='dm'||v.t==='server'){RD[key()]=now();clearTimeout(rdTm);rdTm=setTimeout(rdSave,1500)}}
 const rxe=n=>n.replace(/[.*+?^${}()|[\]\\-]/g,'\\$&');
-function pingedMsg(m,n,by){
+function pingedMsg(m,n,by,sid){
   const x=m.x||'';
   if(new RegExp('(^|[^\\w])@'+rxe(n)+'(?![\\w.-])','i').test(x))return true;
-  if(/(^|[^\w])@everyone(?![\w.-])/i.test(x)&&can('pingall',m.u))return true;
+  if(/(^|[^\w])@everyone(?![\w.-])/i.test(x)&&can('pingall',m.u,sid||'official'))return true;
   const o=m.re&&by&&by.get(m.re);return !!(o&&o.u===n);
 }
 function unreadDM(p){if(active()&&v.t==='dm'&&v.peer===p)return 0;const k='dm:'+fk(me,p),t=rdT(k);return msgsOf(k).filter(m=>m.u!==me&&isNew(m,t)).length}
-function pingCount(k){if(active()&&v.t==='server'&&k==='official:'+v.ch)return 0;const L=msgsOf(k),by=new Map(L.map(x=>[x.id,x])),t=rdT(k);return L.filter(m=>m.u!==me&&isNew(m,t)&&pingedMsg(m,me,by)).length}
+function pingCount(k){if(active()&&v.t==='server'&&k==='official:'+v.ch)return 0;const L=msgsOf(k),by=new Map(L.map(x=>[x.id,x])),t=rdT(k);return L.filter(m=>m.u!==me&&isNew(m,t)&&pingedMsg(m,me,by,svOfKey(k))).length}
 const snip=m=>m.poll?'📊 '+m.poll.q:(m.x||'').replace(/\s+/g,' ').slice(0,80)||(m.img?'📷 Photo':m.v?'🎞 Video':'');
 function replyBar(){
   if(!v.reply)return '';
@@ -723,7 +737,7 @@ function acUpdate(el){
   const box=document.getElementById('ac');if(!box)return;
   const m=el.value.slice(0,el.selectionStart).match(/(^|\s)@([a-z0-9._-]*)$/i);
   if(!m){box.innerHTML='';return}
-  const q=m[2].toLowerCase(),l=users().filter(n=>(n.startsWith(q)||nm(n).toLowerCase().startsWith(q))&&n!==me).slice(0,5);
+  const q=m[2].toLowerCase(),l=(v.t==='server'?memberUsers(SVID()):users()).filter(n=>(n.startsWith(q)||nm(n).toLowerCase().startsWith(q))&&n!==me).slice(0,5);
   if(can('pingall')&&'everyone'.startsWith(q))l.unshift('everyone');
   box.innerHTML=l.map(n=>`<button type="button" data-a="acpick" data-n="${esc(n)}">${av(n)}<span>${esc(nm(n))}${nm(n)!==n?' <small>@'+esc(n)+'</small>':''}</span></button>`).join('');
 }
@@ -864,13 +878,13 @@ function voiceMain(c,mc){
   <div class="pane"><div class="vcgrid">${part.map(u=>`<button class="vcc" data-a="prof" data-n="${esc(u)}">${av(u,0,1)}<span style="color:${rc(u)}">${esc(dnS(u))}${u===me?' (you)':''}</span></button>`).join('')||'<div class="empty">Nobody is in this voice channel yet.</div>'}</div>
   <div class="acts" style="justify-content:center">${here?'<button class="btn no" data-a="vcleave">Leave voice</button>':`<button class="btn" data-a="vcjoin" data-n="${id}">Join voice</button>`}</div>
   ${canPost(c)?'':'<p class="sub" style="text-align:center;margin-top:12px">You can listen here, but you don’t have permission to speak.</p>'}
-  ${can('screen')?'':'<p class="sub" style="text-align:center">Screen sharing needs the “Share screen” permission.</p>'}</div></div>`;
+  ${can('screen',me,c.s||'official')?'':'<p class="sub" style="text-align:center">Screen sharing needs the “Share screen” permission.</p>'}</div></div>`;
 }
 function vcUI(){
   const p=document.getElementById('vcpanel'),bar=document.getElementById('vcbar');if(!p||!bar)return;
   if(!VC.ch){p.hidden=true;bar.innerHTML='';return}
   const c=chan(VC.ch)||{name:'voice'},part=vcPeople(VC.ch);p.hidden=false;
-  bar.innerHTML=`<div class="ct">🔊 <b>${esc(c.name)}</b> · ${part.length} connected</div><div class="vcp">${part.map(u=>`<span class="vcu">${av(u)}<span>${esc(dnS(u))}</span></span>`).join('')}</div><div class="ca">${VC.stream?`<button class="btn sec" data-v="mute">${VC.muted?'Unmute':'Mute'}</button>`:'<span class="sub">Listening only</span>'}<button class="btn sec" data-v="deaf">${VC.deaf?'Undeafen':'Deafen'}</button>${can('screen')&&navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-v="share">${VC.scr?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-v="leave">Leave</button></div>`;
+  bar.innerHTML=`<div class="ct">🔊 <b>${esc(c.name)}</b> · ${part.length} connected</div><div class="vcp">${part.map(u=>`<span class="vcu">${av(u)}<span>${esc(dnS(u,vsid()))}</span></span>`).join('')}</div><div class="ca">${VC.stream?`<button class="btn sec" data-v="mute">${VC.muted?'Unmute':'Mute'}</button>`:'<span class="sub">Listening only</span>'}<button class="btn sec" data-v="deaf">${VC.deaf?'Undeafen':'Deafen'}</button>${can('screen',me,vsid())&&navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia?`<button class="btn sec" data-v="share">${VC.scr?'Stop sharing':'Share screen'}</button>`:''}<button class="btn no" data-v="leave">Leave</button></div>`;
 }
 function vcStream(){
   if(VC.stream)return VC.stream;
@@ -904,7 +918,7 @@ function vcAttach(c,u,p){
 function vcConnect(u,p){
   if(!VC.ch||!NET.sp||!NET.sp.open||VC.calls[p]||NET.sp.id===p||!(NET.sp.id>p))return;
   vcAttach(NET.sp.call(p,vcStream(),{metadata:{from:me,kind:'vc',ch:VC.ch}}),u,p);
-  if(VC.scr&&can('screen'))vcSendScreen(p);
+  if(VC.scr&&can('screen',me,vsid()))vcSendScreen(p);
 }
 function vcDrop(u){
   for(const [p,x] of Object.entries(VC.calls))if(x.u===u){try{x.call.close()}catch(e){}delete VC.calls[p]}
@@ -917,7 +931,7 @@ function vcScreenIn(p,u,st){
     const w=document.createElement('div');w.className='vcscr';w.dataset.p=p;
     w.innerHTML=`<button class="btn sec" data-v="watch" data-p="${esc(p)}">Watch ${esc(dnS(u))}’s screen</button>`;box.appendChild(w);
   }
-  screenOn('vc:'+p,st,dnS(u));
+  screenOn('vc:'+p,st,dnS(u,vsid()));
 }
 function vcScreenOut(p){
   const box=document.getElementById('vcscreens');if(box)[...box.children].filter(x=>x.dataset.p===p).forEach(x=>x.remove());
@@ -930,9 +944,9 @@ function vcOnCall(call){
   if(md.kind==='vc'){
     if(VC.calls[call.peer])try{VC.calls[call.peer].call.close()}catch(e){}
     call.answer(vcStream());vcAttach(call,from,call.peer);
-    if(VC.scr&&can('screen'))vcSendScreen(call.peer);
+    if(VC.scr&&can('screen',me,vsid()))vcSendScreen(call.peer);
   }else{
-    if(!can('screen',from)){try{call.close()}catch(e){}return}
+    if(!can('screen',from,c.s||'official')){try{call.close()}catch(e){}return}
     call.answer();call.on('stream',st=>vcScreenIn(call.peer,from,st));call.on('close',()=>vcScreenOut(call.peer));
   }
 }
@@ -940,7 +954,7 @@ function vcSendScreen(p){if(!VC.scr||!NET.sp)return;try{VC.scrCalls[p]=NET.sp.ca
 function vcStopShare(){Object.values(VC.scrCalls).forEach(c=>{try{c.close()}catch(e){}});VC.scrCalls={};try{VC.scr&&VC.scr.getTracks().forEach(t=>t.stop())}catch(e){}VC.scr=null}
 async function vcShare(){
   if(!VC.ch)return;
-  if(!can('screen'))return notice('No permission','You need the “Share screen” permission to share in voice channels.');
+  if(!can('screen',me,vsid()))return notice('No permission','You need the “Share screen” permission to share in voice channels.');
   if(VC.scr){vcStopShare();return vcUI()}
   let st;try{st=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false})}catch(e){return}
   VC.scr=st;st.getVideoTracks()[0].addEventListener('ended',()=>{if(VC.scr===st){vcStopShare();vcUI()}});
@@ -1000,7 +1014,7 @@ function typSet(room,u){
 function typText(room){
   const l=Object.keys(TYP[room]||{}).filter(u=>TYP[room][u]>Date.now()&&u!==me&&getU(u)).sort();
   if(!l.length)return '';
-  const b=u=>`<b>${esc(room.startsWith('ch:')?dnS(u):dn(u))}</b>`;
+  const b=u=>`<b>${esc(room.startsWith('ch:')?dnS(u,(db.ch[room.slice(3)]||{}).s||'official'):dn(u))}</b>`;
   return l.length===1?b(l[0])+' is typing…':l.length===2?b(l[0])+' and '+b(l[1])+' are typing…':l.length===3?b(l[0])+', '+b(l[1])+' and '+b(l[2])+' are typing…':'Several people are typing…';
 }
 function typUpdate(){const el=document.getElementById('typing');if(!el||!me)return;const r=typRoom();const h=r?typText(r):'';if(el.innerHTML!==h)el.innerHTML=h}
@@ -1015,18 +1029,18 @@ async function typPing(){
 }
 
 function msgsHtml(){
-  const k=key(),srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&me!==ADMIN&&(hasP('nohistory')||inList(c.nohist,me));
+  const k=key(),srv=v.t==='server',c=srv&&chan(v.ch),nh=srv&&!isOwner(me,c.s||'official')&&(hasP('nohistory',me,c.s||'official')||inList(c.nohist,me,c.s||'official'));
   const all=msgsOf(k),by=new Map(all.map(x=>[x.id,x]));let list=all;if(nh)list=list.filter(m=>m.t>=SINCE);
   let prev=null,out='';
   const title=srv?'Welcome to #'+c.name:'Your chat with '+dn(v.peer),canRe=!srv||canPost(c);
-  out+=`<div class="intro">${srv?'<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">hrs</div>':av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone at hrs.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
+  out+=`<div class="intro">${srv?`<div class="logo" style="width:68px;height:68px;border-radius:50%;font-size:26px">${(c.s||'official')==='official'?'hrs':esc(Array.from((svRec(c.s)||{name:'?'}).name)[0])}</div>`:av(v.peer,1,1)}<h2>${esc(title)}</h2><p>${srv?(c.a?'Company-wide updates from hrs. Only people with permission can post here.':'The start of #'+esc(c.name)+' for everyone in '+esc((svRec(c.s||'official')||{name:'this server'}).name)+'.'):'This is the start of your direct message history.'}</p>${nh?'<p style="margin-top:6px">You don’t have permission to view chat history, so only new messages appear here.</p>':''}</div>`;
   list.forEach(m=>{
     const first=!prev||prev.u!==m.u||m.t-prev.t>300000||!!m.re;
     let rp='';
     if(m.re){const o=by.get(m.re);rp=o?`<div class="reply" data-a="jump" data-id="${esc(o.id)}"><span class="ri">↱</span><b style="color:${rc(o.u)}">${esc(nm(o.u))}</b> <span class="rs">${esc(snip(o))}</span></div>`:'<div class="reply"><span class="ri">↱</span><span class="rs">The original message was deleted or isn’t available.</span></div>'}
-    const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" data-k="${esc(k)}" data-t="${esc(m.vt||'video/mp4')}" controls preload="metadata"></video>`:''}`;
+    const body=`${m.poll?pollHtml(m,k):`<div class="tx">${m.x?md(m.x,m.u,(c&&c.s)||'official'):''}${m.ed?' <span class="ts">(edited)</span>':''}</div>${m.x?embedsOf(m.x):''}`}${m.img?`<img class="pic" data-a="viewimg" data-id="${esc(m.img)}" data-img="${esc(m.img)}" data-k="${esc(k)}" alt="Photo">`:''}${m.v?`<video class="vid" playsinline data-vid="${esc(m.v)}" data-k="${esc(k)}" data-t="${esc(m.vt||'video/mp4')}" controls preload="metadata"></video>`:''}`;
     const tl=(canRe?`<button data-a="reply" data-id="${esc(m.id)}" aria-label="Reply">Reply</button>`:'')+(m.u===me&&!m.poll?`<button data-a="medit" data-id="${esc(m.id)}" aria-label="Edit message">Edit</button>`:'')+(m.u===me||(srv&&can('delmsg'))?`<button class="d" data-a="delmsg" data-id="${esc(m.id)}" aria-label="Delete message">Delete</button>`:''),del=tl?`<div class="del">${tl}</div>`:'';
-    const png=m.u!==me&&pingedMsg(m,me,by)?' ping':'';
+    const png=m.u!==me&&pingedMsg(m,me,by,(c&&c.s)||'official')?' ping':'';
     out+=first?`<div class="msg first${png}" data-mid="${esc(m.id)}">${av(m.u,1)}<div>${rp}${nameTag(m.u)}<span class="ts">${fmt(m.t)}</span>${body}</div>${del}</div>`
       :`<div class="msg${png}" data-mid="${esc(m.id)}"><div class="gut">${new Date(m.t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div><div>${body}</div>${del}</div>`;
     prev=m;
@@ -1066,6 +1080,7 @@ function modalHtml(){
     else act=`<button class="btn" data-a="pfadd" data-n="${N}">Add friend</button>`;
     {const g=self||can('nick'),sv=self?can('snick'):can('nick');
      act=(g?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="global">${self?'Change nickname':'Manage nickname'}</button>`:'')+(sv?`<button class="btn sec" data-a="nickedit" data-n="${N}" data-sc="server">${self?'Change server nickname':'Manage server nickname'}</button>`:'')+act}
+    {const sid=SVID(),ok=v.t==='server'&&sid!=='official'&&!self&&isMember(n,sid)&&!isOwner(n,sid);if(ok&&can('kick',me,sid))act+=`<button class="btn no" data-a="svkick" data-n="${N}">Kick</button>`;if(ok&&can('ban',me,sid))act+=`<button class="btn no" data-a="svban" data-n="${N}">Ban</button>`}
     const have=Array.isArray(t.roles)?t.roles:[];
     const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
     c=`<div class="phead">${av(n,0,1)}<div><div class="pname">${D}</div>${nm(n)!==n?`<div class="sub" style="margin:-4px 0 6px;font-size:13px">@${N}</div>`:''}<div class="chips">${rolesOf(n).map(r=>`<span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span>`).join('')}</div></div></div>${rl}<div class="acts">${act}</div>`;
@@ -1074,7 +1089,7 @@ function modalHtml(){
   }else if(m.t==='del2'){
     c=`<h2>Confirm it’s you</h2><p class="mp">Enter your username and password to delete your account permanently.</p><input id="delname" placeholder="Username" autocomplete="off" aria-label="Username"><input id="delpw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><div id="derr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="delgo">Delete account</button></div>`;
   }else if(m.t==='roles'){
-    c=`<h2>Roles &amp; permissions</h2><div class="row" style="border-top:0"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">All permissions</span></div>${roleList().map(r=>`<div class="rr"><div class="row" style="border-top:0;padding:0 0 6px"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div><div class="chips">${PERMS.map(([k,l,x])=>`<button class="chip ${r.p&&r.p[k]===true?'on':''}" style="--c:${x?'#f87075':col(r.color)}" data-a="rperm" data-r="${esc(r.id)}" data-p="${k}">${l}</button>`).join('')}</div></div>`).join('')}
+    c=`<h2>Roles &amp; permissions</h2><div class="row" style="border-top:0"><span class="chip on" style="--c:${OWNER.color}">Owner</span><span class="nm"></span><span class="sub">All permissions</span></div>${roleList().map(r=>`<div class="rr"><div class="row" style="border-top:0;padding:0 0 6px"><span class="chip on" style="--c:${col(r.color)}">${esc(r.name)}</span><span class="nm"></span><button class="btn no" data-a="rdel" data-r="${esc(r.id)}">Delete</button></div><div class="chips">${PERMS.filter(p=>SVID()!=='official'||!['kick','ban','invite'].includes(p[0])).map(([k,l,x])=>`<button class="chip ${r.p&&r.p[k]===true?'on':''}" style="--c:${x?'#f87075':col(r.color)}" data-a="rperm" data-r="${esc(r.id)}" data-p="${k}">${l}</button>`).join('')}</div></div>`).join('')}
     <div class="cap">Create a role</div><div class="addbox"><input id="rname" placeholder="Role name" maxlength="24" aria-label="Role name"><input id="rcolor" type="color" value="#3ba55d" aria-label="Role color"><button class="btn" data-a="rnew">Create</button></div><div class="acts"><button class="btn sec" data-a="mclose">Done</button></div>`;
   }else if(m.t==='chname'){
     const add=m.mode==='add',ch=add?{}:(chan(m.id)||{}),cur=ch.name||'',id=esc(m.id||'');
@@ -1095,8 +1110,18 @@ function modalHtml(){
   }else if(m.t==='pic'){
     c=`<img class="big" src="${esc(iurl[m.id]||'')}" alt="Photo">`;
   }else if(m.t==='nick'){
-    const t=getU(m.n);if(!t)return '';const sv=m.scope==='server',cur=sv?t.snick:t.nick;
+    const t=getU(m.n);if(!t)return '';const sv=m.scope==='server',cur=sv?snickOf(t,m.sv||SVID()):t.nick;
     c=`<h2>${sv?(m.n===me?'Change your server nickname':'Server nickname for '+esc(dn(m.n))):(m.n===me?'Change your nickname':'Nickname for '+esc(dn(m.n)))}</h2><p class="mp">${sv?'A server nickname is only shown inside the Official server (channels, members and voice). Everywhere else the regular nickname is used.':'Your nickname is shown instead of the username in chats. The username (<b>@'+esc(m.n)+'</b>) doesn’t change and is still used to sign in and for @mentions.'}</p><input id="nickin" value="${esc(m.draft??(cur||''))}" placeholder="${esc(sv?dn(m.n):m.n)}" maxlength="32" autocomplete="off" aria-label="${sv?'Server nickname':'Nickname'}"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button>${cur?'<button class="btn sec" data-a="nickreset">Reset</button>':''}<button class="btn" data-a="nicksave">Save</button></div>`;
+  }else if(m.t==='svadd'){
+    c=`<h2>Add a server</h2><div class="cap">Create your own</div><div class="addbox"><input id="svname" placeholder="Server name" maxlength="32" aria-label="Server name"><button class="btn" data-a="svcreate">Create</button></div><span class="sub">You’ll be the owner, with full control of its channels, roles and members.</span><div class="cap">Join with an invite</div><div class="addbox"><input id="svcode" placeholder="Invite code or link" aria-label="Invite code"><button class="btn" data-a="svjoin">Join</button></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Close</button></div>`;
+  }else if(m.t==='svset'){
+    const sid=m.id,x=svRec(sid);if(!x)return '';
+    const own=isOwner(me,sid),off=sid==='official',bans=Object.values(db.mb).filter(r=>r.s===sid&&r.st==='ban'&&!r.del);
+    c=`<h2>${esc(x.name)}</h2>${off?'<p class="mp">The Official server is required for everyone and can’t be left.</p>':''}${!off&&me===ADMIN&&x.owner!==ADMIN?'<p class="sub">You’re managing this server as the site owner.</p>':''}
+    ${own&&!off?`<div class="cap">Server name</div><div class="addbox"><input id="svren" value="${esc(x.name)}" maxlength="32" aria-label="Server name"><button class="btn" data-a="svrename">Save</button></div>`:''}
+    ${!off&&(own||can('invite',me,sid))&&x.ic?`<div class="cap">Invite people</div><div class="addbox"><input id="svlink" readonly value="${esc(inviteLink(x))}" aria-label="Invite link"><button class="btn" data-a="svcopy">Copy</button></div><span class="sub">Code: <b>${esc(x.ic)}</b> · anyone with it can join, unless banned.</span>${own?'<div class="acts"><button class="btn sec" data-a="svreset">New invite code</button></div>':''}`:''}
+    ${!off&&can('ban',me,sid)?`<div class="cap">Banned (${bans.length})</div>${bans.length?bans.map(r=>`<div class="row" style="padding:6px 0"><span class="nm">${esc(dn(r.u))}</span><button class="btn sec" data-a="svunban" data-n="${esc(r.u)}">Unban</button></div>`).join(''):'<span class="sub">Nobody is banned.</span>'}`:''}
+    <div class="acts">${!off&&!own?'<button class="btn no" data-a="svleave">Leave server</button>':''}${!off&&own?'<button class="btn no" data-a="svdelete">Delete server</button>':''}<button class="btn sec" data-a="mclose">Close</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -1122,28 +1147,32 @@ function render(){
     if(typed){const el=document.getElementById(typed.id);if(el){el.value=typed.val;el.focus();if(el.tagName==='TEXTAREA')grow(el)}}
     status();return;
   }
-  if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
+  if(!svRec(SVID())||!isMember(me,SVID()))v.sv='official';
+  if(v.t==='server'){const cc=v.ch&&chan(v.ch);if(!(cc&&(cc.s||'official')===SVID()&&canSee(cc))){const vc=chans().filter(x=>canSee(x));v.ch=vc.length?vc[0].id:null}}
   if(v.t==='dm'&&!getU(v.peer)){v.t='home';v.peer=null}
   if(v.reply&&(v.t==='home'||v.reply.k!==key()))v.reply=null;
-  const fr=friendsOf(me),inc=incOf(me),out=outOf(me),pend=inc.length,adm=isAdmin(),mc=can('chan');
+  const fr=friendsOf(me),inc=incOf(me),out=outOf(me),pend=inc.length,adm=isOwner(me),mc=can('chan');
   markRead();
   const du=fr.map(n=>({n,c:unreadDM(n)})).filter(x=>x.c>0),um=Object.fromEntries(du.map(x=>[x.n,x.c]));
-  const pm=Object.fromEntries(chans().filter(x=>canSee(x)).map(x=>[x.id,pingCount('official:'+x.id)])),sp=Object.values(pm).reduce((a,b)=>a+b,0);
+  const allCh=Object.keys(db.ch).map(id=>chan(id)).filter(x=>x&&canSee(x)),pm=Object.fromEntries(allCh.map(x=>[x.id,pingCount('official:'+x.id)])),sp=Object.values(pm).reduce((a,b)=>a+b,0),spBy={};
+  allCh.forEach(x=>{const k=x.s||'official';spBy[k]=(spBy[k]||0)+pm[x.id]});
+  const bd=n=>n?`<span class="badge">${n>9?'9+':n}</span>`:'';
+  const svBtns=servers().map(x=>x.id==='official'?`<button class="ric logo ${v.t==='server'&&SVID()==='official'?'on':''}" data-a="sv" data-n="official" title="Official" aria-label="Official server">hrs${bd(spBy.official)}</button>`:`<button class="ric ${v.t==='server'&&SVID()===x.id?'on':''}" data-a="sv" data-n="${esc(x.id)}" title="${esc(x.name)}" aria-label="${esc(x.name)} server" style="background:hsl(${hue(x.id)} 45% 38%);color:#fff;font-weight:700;font-size:17px">${esc(Array.from(x.name)[0]||'?')}${bd(spBy[x.id])}</button>`).join('');
   UNR=du.reduce((a,x)=>a+x.c,0)+sp;document.title=(UNR?'('+UNR+') ':'')+'hrs chat';
   const dmav=du.slice(0,6).map(x=>`<button class="ric dmav" data-a="dm" data-n="${esc(x.n)}" title="${esc(dn(x.n))}" aria-label="Unread messages from ${esc(dn(x.n))}">${av(x.n)}<span class="badge">${x.c>9?'9+':x.c}</span></button>`).join('');
   const rail=`<nav class="rail" aria-label="Servers">
     <button class="ric home ${v.t!=='server'?'on':''}" data-a="home" title="Direct Messages" aria-label="Direct Messages">@${pend?`<span class="badge">${pend}</span>`:''}</button>${dmav}
     <div class="sep"></div>
-    <button class="ric logo ${v.t==='server'?'on':''}" data-a="server" title="Official" aria-label="Official server">hrs${sp?`<span class="badge">${sp>9?'9+':sp}</span>`:''}</button><div class="nst"></div></nav>`;
+    ${svBtns}<button class="ric" data-a="svadd" title="Create or join a server" aria-label="Create or join a server" style="color:var(--green);font-size:26px">+</button><div class="nst"></div></nav>`;
   let side,main;
   const meBar=`<div class="me"><button class="item" style="flex:1;min-width:0;padding:4px;min-height:40px" data-a="prof" data-n="${esc(me)}" title="Your profile">${av(me)}<span class="nm" style="color:${rc(me)}">${esc(nm(me))}</span></button><button data-a="logout" title="Switch account">Sign out</button></div>`;
   if(v.t==='server'){
-    const c=v.ch?chan(v.ch):null,mem=users();
-    side=`<div class="side"><div class="shead">Official</div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
+    const c=v.ch?chan(v.ch):null,mem=memberUsers(SVID()),sv0=svRec(SVID());
+    side=`<div class="side"><div class="shead tap" data-a="svmenu" title="Server menu">${esc(sv0.name)} <span class="sub">▾</span></div><div class="slist"><div class="cap cp">Channels${mc?'<button class="plus" data-a="chadd" title="Add channel" aria-label="Add channel">+</button>':''}</div>
       ${chans().filter(x=>canSee(x)).map(x=>`<button class="item ${v.ch===x.id?'on':''}" data-a="ch" data-n="${esc(x.id)}"><span style="font-size:20px">${x.vc?'🔊':Array.isArray(x.vis)&&x.vis.length?'🔒':'#'}</span><span class="nm">${esc(x.name)}</span>${pm[x.id]?`<span class="badge" style="position:static;border:0;margin-left:auto">${pm[x.id]}</span>`:''}</button>${x.vc?vcList(x.id):''}`).join('')}
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
-      <div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div></div>${meBar}</div>`;
-    main=!c?`<div class="main"><div class="mhead">${burger()}Official</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
+      ${SVID()==='official'?'<div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div>':''}</div>${meBar}</div>`;
+    main=!c?`<div class="main"><div class="mhead">${burger()}${esc(sv0.name)}</div><div class="pane"><div class="empty">No channels are available for your roles yet.</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
       <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(dnS(n))}</span></button>`).join('')}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
@@ -1189,7 +1218,7 @@ const notice=(title,msg)=>{v.modal={t:'alert',title,msg};render()};
 function submitChan(){
   const m=v.modal,n=cname(document.getElementById('chn').value);
   if(!n){document.getElementById('cerr').textContent='Use letters, numbers, dashes, underscores or emojis.';return false}
-  if(m.mode==='add'){const id=newId();db.ch[id]={id,name:uniq(n),o:now(),m:now()};if(m.vc)db.ch[id].vc=1;v.ch=id;v.t='server'}
+  if(m.mode==='add'){const id=newId();db.ch[id]={id,name:uniq(n),s:SVID(),o:now(),m:now()};if(m.vc)db.ch[id].vc=1;v.ch=id;v.t='server'}
   else{const c=db.ch[m.id];if(c&&n!==c.name){c.name=uniq(n);bump(c)}}
   v.modal=null;changed();return true;
 }
@@ -1197,7 +1226,7 @@ async function uploadVid(id,b){if(NET.hub&&NET.hub.open&&b.size<=50*1024*1024)NE
 async function dupChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;const nid=newId(),t=now(),L=[];
   for(const m of msgsOf('official:'+id)){const n={...m,id:newId(),m:t};if(m.v){n.v=newId();try{const b=await getBlob(m.v);if(b){await putBlob(n.v,b);uploadVid(n.v,b);mqPubBlob(n.v,'official:'+nid)}}catch(e){}}L.push(n)}
-  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),a:c.a,vc:c.vc,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
+  db.ch[nid]={id:nid,name:uniq(c.name+'-copy'),s:c.s,a:c.a,vc:c.vc,vis:c.vis,post:c.post,slow:c.slow,slowx:c.slowx,nohist:c.nohist,o:t,m:t};db.msgs['official:'+nid]=L;v.ch=nid;v.t='server';changed();render();
 }
 function delChan(id){
   if(!can('chan'))return;const c=chan(id);if(!c)return;
@@ -1210,15 +1239,63 @@ function doDelChan(id){
   db.ch[id].del=1;bump(db.ch[id]);if(v.ch===id)v.ch=chans()[0].id;changed();
 }
 function doDelMsg(k,id){const m=(db.msgs[k]||[]).find(x=>x.id===id);if(!m||m.del)return;if(m.u!==me&&!(k.startsWith('official:')&&can('delmsg')))return;const im=m.img,bn=m.bn,vv=m.v;if(vv)delBlob(vv).catch(()=>{});tomb(m);changed();if(im)imgGone(im,bn);if(vv)clearBlobs(vv,bn)}
-function setNick(target,raw,scope){
+function setNick(target,raw,scope,sid=SVID()){
   const sv=scope==='server';
-  if(sv?(target===me?!can('snick'):!can('nick')):(target!==me&&!can('nick')))return sv&&target===me?'You don’t have permission to set a server nickname.':'You don’t have permission to change other people’s nicknames.';
+  if(sv?(target===me?!can('snick',me,sid):!can('nick',me,sid)):(target!==me&&!can('nick')))return sv&&target===me?'You don’t have permission to set a server nickname.':'You don’t have permission to change other people’s nicknames.';
   const t=getU(target);if(!t)return 'That account no longer exists.';
-  const nick=Array.from(String(raw).replace(/[\u0000-\u001f\u007f]/g,'').replace(/\s+/g,' ').trim()).slice(0,32).join(''),f=sv?'snick':'nick';
+  const nick=Array.from(String(raw).replace(/[\u0000-\u001f\u007f]/g,'').replace(/\s+/g,' ').trim()).slice(0,32).join('');
   if(nick&&nick.toLowerCase()!==target&&users().includes(nick.toLowerCase()))return 'That’s another person’s username. Choose a different nickname.';
-  if(nick)t[f]=nick;else delete t[f];
+  if(sv){
+    let o=typeof t.snick==='string'?{official:t.snick}:(t.snick&&typeof t.snick==='object'?{...t.snick}:{});
+    if(nick)o[sid]=nick;else delete o[sid];t.snick=o;
+  }else{if(nick)t.nick=nick;else delete t.nick}
   bump(t);changed();return '';
 }
+/* ---------- servers: create, invite, kick, ban ---------- */
+const newCode=()=>Array.from(crypto.getRandomValues(new Uint8Array(10)),b=>'abcdefghjkmnpqrstuvwxyz23456789'[b%31]).join('');
+const inviteLink=sv=>{try{return location.origin+location.pathname+'#join='+sv.ic}catch(e){return '#join='+sv.ic}};
+function setMember(sid,u,st){const k=sid+'|'+u,old=db.mb[k];db.mb[k]={s:sid,u,st,by:me,m:Math.max(now(),(old?old.m:0)+1)};changed()}
+function modMember(u,st,sid=SVID()){
+  if(!u||u===me||isOwner(u,sid)||sid==='official')return;
+  if(st==='ban'?!can('ban',me,sid):!can('kick',me,sid))return;
+  setMember(sid,u,st);
+}
+async function svCreate(){
+  const name=document.getElementById('svname').value.trim().replace(/\s+/g,' ').slice(0,32),er=document.getElementById('cerr');
+  if(!name){er.textContent='Give your server a name.';return}
+  if(me!==ADMIN&&Object.values(db.sv).filter(x=>!x.del&&x.owner===me).length>=5){er.textContent='You can own up to 5 servers.';return}
+  const id='s'+newId(),t=now();
+  db.sv[id]={id,name,owner:me,ic:newCode(),o:t,m:t};
+  db.ch['g'+id]={id:'g'+id,name:'general',s:id,o:t,m:t};
+  db.ch['v'+id]={id:'v'+id,name:'voice',vc:1,s:id,o:t+1,m:t};
+  db.mb[id+'|'+me]={s:id,u:me,st:'in',m:t};
+  v.modal=null;v.t='server';v.sv=id;v.ch='g'+id;changed();render();
+}
+function findByCode(code){return Object.values(db.sv).find(x=>!x.del&&x.ic&&x.ic===code)||null}
+const cleanCode=raw=>String(raw).trim().toLowerCase().replace(/^.*join=/,'').replace(/[^a-z0-9]/g,'');
+function joinServer(raw){
+  const code=cleanCode(raw);if(code.length<6)return 'Enter a valid invite code.';
+  const x=findByCode(code);if(!x)return 'That invite code isn’t valid, or it hasn’t reached this device yet. Try again in a moment.';
+  if(isBanned(me,x.id))return 'You’re banned from this server.';
+  if(!isMember(me,x.id))setMember(x.id,me,'in');
+  v.sv=x.id;v.t='server';v.ch=null;return '';
+}
+function svJoinUI(){const er=document.getElementById('cerr'),msg=joinServer(document.getElementById('svcode').value);if(msg){er.textContent=msg;return}v.modal=null;render()}
+function deleteServer(sid){
+  const x=db.sv[sid];if(!x||x.del||!isOwner(me,sid))return;
+  for(const id of Object.keys(db.ch)){const c=db.ch[id];if(!c.del&&(c.s||'official')===sid){(db.msgs['official:'+id]||[]).forEach(m=>{if(m.v)delBlob(m.v).catch(()=>{});tomb(m)});c.del=1;bump(c)}}
+  if(VC.ch&&vsid()===sid)vcLeave();
+  x.del=1;bump(x);if(v.sv===sid){v.sv='official';v.ch=null}changed();
+}
+function leaveServer(sid){if(sid==='official'||isOwner(me,sid))return;if(VC.ch&&vsid()===sid)vcLeave();setMember(sid,me,'out');v.sv='official';v.t='server';v.ch=null}
+let PEND_INV=null;
+try{const mm=(location.hash||'').match(/join=([a-z0-9]+)/i);if(mm){PEND_INV=mm[1].toLowerCase();history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
+function checkInvite(){
+  if(!PEND_INV||!me)return;const x=findByCode(PEND_INV);if(!x)return;
+  if(isMember(me,x.id)||isBanned(me,x.id)){PEND_INV=null;return}
+  v.modal={t:'confirm',title:'Join '+x.name+'?',msg:'You’ve been invited to join this server.',btn:'Join server',go:'svjoin',code:PEND_INV};PEND_INV=null;render();
+}
+
 function doDelRole(id){const r=db.roles[id];if(r){r.del=1;bump(r);changed()}}
 async function sendVideo(f){
   if(!can('video')||v.t!=='server')return;
@@ -1234,6 +1311,7 @@ async function delAccount(){
   let ok=false;try{ok=n===me&&p&&await hash(p,u.s)===u.h}catch(e){}
   if(!ok){er.textContent='That username and password don’t match this account.';return}
   const t=now(),gone=[];
+  for(const x of Object.values(db.sv))if(x.owner===me&&!x.del)deleteServer(x.id);
   for(const k of Object.keys(db.msgs)){
     if(k.startsWith('dm:')&&k.slice(3).split('|').includes(me)){db.msgs[k].forEach(m=>m.v&&gone.push(m.v));delete db.msgs[k]}
     else for(const m of db.msgs[k])if(m.u===me&&!m.del){if(m.v)gone.push(m.v);tomb(m)}
@@ -1268,9 +1346,21 @@ root.addEventListener('click',e=>{
   if(a==='pickpic')return document.getElementById('picin').click();
   if(a==='attachimg')return document.getElementById('imgin').click();
   if(a==='call')return startCall(n);
-  if(a==='nickedit'){const sc=b.dataset.sc==='server'?'server':'global';if(sc==='server'?(n===me?!can('snick'):!can('nick')):(n!==me&&!can('nick')))return;v.modal={t:'nick',n,scope:sc};return render()}
-  if(a==='nicksave'){const er=setNick(v.modal.n,document.getElementById('nickin').value,v.modal.scope);if(er){document.getElementById('cerr').textContent=er;return}v.modal=null;return render()}
-  if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope);v.modal=null;return render()}
+  if(a==='nickedit'){const sc=b.dataset.sc==='server'?'server':'global';if(sc==='server'?(n===me?!can('snick'):!can('nick')):(n!==me&&!can('nick')))return;v.modal={t:'nick',n,scope:sc,sv:SVID()};return render()}
+  if(a==='nicksave'){const er=setNick(v.modal.n,document.getElementById('nickin').value,v.modal.scope,v.modal.sv);if(er){document.getElementById('cerr').textContent=er;return}v.modal=null;return render()}
+  if(a==='sv'){v.t='server';v.sv=n;v.ch=(v.lastCh||{})[n]||null;return render()}
+  if(a==='svadd'){v.modal={t:'svadd'};return render()}
+  if(a==='svcreate')return svCreate();
+  if(a==='svjoin')return svJoinUI();
+  if(a==='svmenu'){v.modal={t:'svset',id:SVID()};return render()}
+  if(a==='svrename'){const sid=v.modal.id,x=db.sv[sid],nn=document.getElementById('svren').value.trim().replace(/\s+/g,' ').slice(0,32);if(x&&nn&&isOwner(me,sid)){x.name=nn;bump(x);changed()}return render()}
+  if(a==='svcopy'){const el=document.getElementById('svlink');try{navigator.clipboard.writeText(el.value)}catch(e){el.select()}b.textContent='Copied';return}
+  if(a==='svreset'){const sid=v.modal.id,x=db.sv[sid];if(x&&isOwner(me,sid)){x.ic=newCode();bump(x);changed()}return render()}
+  if(a==='svunban'){if(can('ban',me,v.modal.id))setMember(v.modal.id,n,'out');return render()}
+  if(a==='svkick'||a==='svban'){const sid=SVID();if(n===me||isOwner(n,sid)||sid==='official')return;if(a==='svban'?!can('ban',me,sid):!can('kick',me,sid))return;v.modal={t:'confirm',title:(a==='svban'?'Ban ':'Kick ')+dn(n)+'?',msg:a==='svban'?'They’ll be removed from this server and can’t rejoin until you unban them.':'They’ll be removed from this server. They can rejoin with an invite code.',btn:a==='svban'?'Ban':'Kick',go:a==='svban'?'ban':'kick',id:n,sid};return render()}
+  if(a==='svdelete'){v.modal={t:'confirm',title:'Delete this server?',msg:'Its channels and messages are deleted for everyone. This can’t be undone.',btn:'Delete server',go:'svdel',sid:v.modal.id};return render()}
+  if(a==='svleave'){v.modal={t:'confirm',title:'Leave this server?',msg:'You can rejoin later with an invite code.',btn:'Leave server',go:'svleave',sid:v.modal.id};return render()}
+  if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope,v.modal.sv);v.modal=null;return render()}
   if(a==='vcjoin')return vcJoin(n);
   if(a==='vcleave')return vcLeave();
   if(a==='rcancel'){v.reply=null;return render()}
@@ -1291,11 +1381,11 @@ root.addEventListener('click',e=>{
     else{if(m.u!==me&&!(v.t==='server'&&can('delmsg')))return;v.modal={t:'confirm',title:'Delete this message?',msg:'This can’t be undone.',btn:'Delete message',go:'msg',k,id:m.id}}
     return render();
   }
-  if(a==='rdel'){const id=b.dataset.r;if(!isAdmin()||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
+  if(a==='rdel'){const id=b.dataset.r;if(!isOwner(me)||!db.roles[id])return;v.modal={t:'confirm',title:'Delete the “'+db.roles[id].name+'” role?',msg:'Everyone who has it will lose it.',btn:'Delete role',go:'role',id};return render()}
   if(a==='home'){v.t='home';v.peer=null}
   else if(a==='server')v.t='server';
   else if(a==='friends'){v.t='home';v.peer=null;v.nav=false}
-  else if(a==='ch'){v.ch=n;v.nav=false}
+  else if(a==='ch'){v.ch=n;v.nav=false;(v.lastCh=v.lastCh||{})[SVID()]=n}
   else if(a==='dm'){v.t='dm';v.peer=n;v.nav=false}
   else if(a==='nav')v.nav=true;
   else if(a==='navx')v.nav=false;
@@ -1307,19 +1397,19 @@ root.addEventListener('click',e=>{
   else if(a==='prof')v.modal={t:'prof',n};
   else if(a==='mclose')v.modal=null;
   else if(a==='del1'||a==='del2')v.modal={t:a};
-  else if(a==='roles'&&isAdmin())v.modal={t:'roles'};
+  else if(a==='roles'&&isOwner(me))v.modal={t:'roles'};
   else if(a==='rmpic'){delete U().pic;bump(U());changed()}
   else if(a==='pfrole'&&can('assign')){const t=db.users[n],r=b.dataset.r,cur=Array.isArray(t.roles)?t.roles:[];t.roles=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];bump(t);changed()}
-  else if(a==='rnew'&&isAdmin()){const nm=document.getElementById('rname').value.trim().slice(0,24);if(!nm)return;const id='r'+newId();db.roles[id]={id,name:nm,color:document.getElementById('rcolor').value,m:now()};changed()}
+  else if(a==='rnew'&&isOwner(me)){const nm=document.getElementById('rname').value.trim().slice(0,24);if(!nm)return;const id='r'+newId();db.roles[id]={id,s:SVID(),name:nm,color:document.getElementById('rcolor').value,m:now()};changed()}
   else if(a==='chadd'&&mcan())v.modal={t:'chname',mode:'add'};
   else if(a==='chren'&&mcan()&&chan(n))v.modal={t:'chname',mode:'ren',id:n};
   else if(a==='chann'&&mcan()&&db.ch[n]){const c=db.ch[n];if(c.a)delete c.a;else c.a=1;bump(c);changed()}
   else if(a==='chslow'&&mcan()&&db.ch[n]){const c=db.ch[n],q=+b.dataset.s;if(SLOWS.some(x=>x[0]===q)){if(q)c.slow=q;else delete c.slow;bump(c);changed()}}
   else if(['chvis','chpost','chslowx','chnohist'].includes(a)&&mcan()&&db.ch[n]){const c=db.ch[n],f=({chvis:'vis',chpost:'post',chslowx:'slowx',chnohist:'nohist'})[a],r=b.dataset.r,cur=Array.isArray(c[f])?c[f]:[];c[f]=cur.includes(r)?cur.filter(x=>x!==r):[...cur,r];bump(c);changed()}
-  else if(a==='rperm'&&isAdmin()){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];bump(r);changed()}}
+  else if(a==='rperm'&&isOwner(me)){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];bump(r);changed()}}
   else if(a==='chtype'&&v.modal&&v.modal.t==='chname'){v.modal.vc=b.dataset.t==='voice'}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
-  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isAdmin())doDelRole(m.id)}
+  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isOwner(me))doDelRole(m.id);else if(m&&m.go==='kick')modMember(m.id,'out',m.sid);else if(m&&m.go==='ban')modMember(m.id,'ban',m.sid);else if(m&&m.go==='svdel')deleteServer(m.sid);else if(m&&m.go==='svleave')leaveServer(m.sid);else if(m&&m.go==='svjoin'){const er=joinServer(m.code);if(er)return notice('Couldn’t join',er)}}
   else if(a==='mesave'){
     const m0=v.modal,m=(db.msgs[m0.k]||[]).find(x=>x.id===m0.id),t=document.getElementById('medit').value.trim().slice(0,2000);
     if(!m||m.del||m.u!==me)v.modal=null;
@@ -1373,7 +1463,7 @@ root.addEventListener('keydown',e=>{
 
 /* ---------- start ---------- */
 if(me&&!getU(me))me=null;
-if(me)rdLoad();
+if(me){rdLoad();setTimeout(checkInvite,3000);setTimeout(checkInvite,8000)}
 render();
 if(window.Peer){join();if(me)startSelf()}else{NET.st='offline';status()}
 mqInit().catch(()=>{});
