@@ -223,6 +223,23 @@ input,textarea{font-size:16px}
 .toast b{display:block;margin-bottom:2px}.toast div{color:var(--muted);font-size:14px;max-height:3.2em;overflow:hidden}
 .notibar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:35;background:#111214;border-radius:10px;padding:10px 14px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px)}
 .notibar[hidden]{display:none}
+.botbadge{background:var(--blurple);color:#fff;border-radius:3px;padding:0 4px;font-size:10px;font-weight:700;vertical-align:middle;margin-left:4px}
+.botedit{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+.botedit[hidden]{display:none}
+.bebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--side);border-bottom:1px solid var(--dark)}
+.bebar input{background:var(--dark);border:0;border-radius:4px;padding:8px 10px;min-width:140px;flex:1}
+.betabs{display:flex;gap:4px}.betabs button{padding:6px 12px;border-radius:4px;color:var(--muted)}.betabs button.on{background:#404249;color:#fff}
+.bebody{flex:1;min-height:0;display:flex}
+.beblocks{flex:1;min-width:0;position:relative;background:#fff}
+.beblocks[hidden],.becode[hidden]{display:none}
+.becode{flex:1;min-width:0;resize:none;border:0;background:#1e1f22;color:#dbdee1;padding:12px;font:14px/1.5 ui-monospace,Consolas,monospace;tab-size:4;white-space:pre;overflow:auto}
+.betest{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--side);border-top:1px solid var(--dark)}
+.betest input{background:var(--dark);border:0;border-radius:4px;padding:8px 10px;flex:1;min-width:160px}
+.beout{flex-basis:100%;max-height:120px;overflow:auto;font:13px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap}.beout:empty{display:none}
+.beout .er{color:#f87075}.beout .ok{color:#57f287}
+.behelp{position:absolute;top:56px;right:12px;width:min(540px,calc(100vw - 24px));max-height:calc(100vh - 140px);overflow:auto;background:#111214;border-radius:8px;padding:6px 16px 14px;z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.behelp[hidden]{display:none}.behelp h3{margin:14px 0 4px}.behelp p{margin:0 0 6px;color:var(--muted)}
+.behelp pre{background:#1e1f22;border-radius:6px;padding:8px 10px;overflow:auto;font:13px/1.5 ui-monospace,Consolas,monospace;margin:4px 0}.behelp code{background:#1e1f22;border-radius:3px;padding:0 4px}
 </style>
 </head>
 <body>
@@ -230,6 +247,32 @@ input,textarea{font-size:16px}
 <input type="file" id="imgin" accept="image/*" hidden>
 <input type="file" id="vidin" accept="video/*" hidden>
 <input type="file" id="picin" accept="image/*" hidden>
+<div id="botedit" class="botedit" hidden>
+  <div class="bebar">
+    <input id="beName" placeholder="Bot name" maxlength="24" autocomplete="off" aria-label="Bot name">
+    <input id="beDesc" placeholder="What does it do?" maxlength="120" autocomplete="off" aria-label="Description">
+    <div class="betabs" role="tablist"><button data-b="k-blocks" class="on">Blocks</button><button data-b="k-js">JavaScript</button><button data-b="k-py">Python</button></div>
+    <button class="btn sec" data-b="help">Help</button><button class="btn" data-b="save">Save</button><button class="btn sec" data-b="close">Close</button>
+  </div>
+  <div class="bebody"><div id="beBlocks" class="beblocks"></div><textarea id="beJs" class="becode" spellcheck="false" aria-label="JavaScript code" hidden></textarea><textarea id="bePy" class="becode" spellcheck="false" aria-label="Python code" hidden></textarea></div>
+  <div class="betest"><input id="beMsg" placeholder="Try a test message, like: hello" autocomplete="off" aria-label="Test message"><button class="btn sec" data-b="test">Run test</button><div id="beOut" class="beout" aria-live="polite"></div></div>
+  <div id="beHelp" class="behelp" hidden>
+    <h3>How bots work</h3><p>A bot reads messages in a server and can reply. It runs on the <b>server owner’s device</b> while that device is online, inside a safe sandbox: no internet, and no access to the rest of the page.</p>
+    <h3>Blocks</h3><p>Use the <b>Bot</b> blocks. <i>when a message is posted</i> runs your blocks for every message, and <i>reply with</i> posts a message. Mix them with Logic, Loops, Math, Text, Lists, Variables and Functions blocks. <i>remember</i> and <i>recall</i> save values between messages.</p>
+    <h3>JavaScript</h3><p>Classic JavaScript (ES5): use <code>var</code>, <code>function</code> and normal quotes. No arrow functions, <code>let</code>/<code>const</code> or template strings.</p>
+    <pre>function onMessage(msg) { }   // msg.text msg.author msg.nick msg.channel
+function onJoin(user) { }     // user.name user.nick
+reply('text')    send('text', 'channel')
+store.get('key') store.set('key', 'value')
+randInt(1, 6)    lc(text)</pre>
+    <h3>Python</h3><p>The basics work: variables, if/elif/else, for, while, functions (<code>def</code>), lists, dictionaries, f-strings, list comprehensions, common string, list and dictionary methods, plus <code>random</code> and <code>math</code>. Classes, try/except, lambda and most imports aren’t supported yet.</p>
+    <pre>def on_message(msg): ...      # msg.text msg.author msg.nick msg.channel
+def on_join(user): ...        # user.name user.nick
+reply("text")   send("text", "channel")
+store.get("key")   store.set("key", value)</pre>
+    <h3>Limits</h3><p>Up to 5 replies per message, 500 characters each, and about 6 bot posts every 20 seconds. A bot that runs too long is stopped.</p>
+  </div>
+</div>
 <div id="toasts" class="toasts"></div>
 <div id="notibar" class="notibar" hidden></div>
 <div id="screenview" class="screenview" hidden><video id="sv" autoplay playsinline></video><div class="svbar"><span id="svcap"></span><div id="svbtns" class="svbtns"></div></div></div>
@@ -247,7 +290,7 @@ const bump=r=>{r.m=Math.max(now(),(r.m||0)+1);return r};
 let db=load(),me=null,v={t:'home',tab:'all',ch:'general',peer:null,note:null,modal:null,ctx:null};
 try{me=localStorage.getItem('hrs_me')}catch(e){}
 function norm(d){
-  for(const s of ['users','roles','ch','fr','sv','mb','sd','iv','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
+  for(const s of ['users','roles','ch','fr','sv','mb','sd','iv','bi','msgs'])d[s]=(d[s]&&typeof d[s]==='object')?d[s]:{};
   d.roles.employee=d.roles.employee||{id:'employee',name:'Employee',color:'#5865f2',m:1};
   d.ch.general=d.ch.general||{id:'general',name:'general',o:1,m:1};
   d.ch.announcements=d.ch.announcements||{id:'announcements',name:'announcements',a:1,o:2,m:1};
@@ -271,7 +314,8 @@ async function hash(pw,salt){
   return hx(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new TextEncoder().encode(salt),iterations:150000},k,256)));
 }
 const getU=n=>{const u=db.users[n];return u&&!u.del&&u.h?u:null};
-const users=()=>Object.keys(db.users).filter(getU).sort();
+const users=()=>Object.keys(db.users).filter(n=>getU(n)&&!db.users[n].bot).sort();
+const botUsers=()=>Object.keys(db.users).filter(n=>getU(n)&&db.users[n].bot).sort();
 const U=()=>db.users[me];
 const dn=n=>{const u=db.users[n];return u&&!u.del&&typeof u.nick==='string'&&u.nick.trim()?u.nick.slice(0,32):n};
 const snickOf=(u,sid)=>!u?'':typeof u.snick==='string'?(sid==='official'?u.snick:''):(u.snick&&typeof u.snick==='object'&&typeof u.snick[sid]==='string'?u.snick[sid]:'');
@@ -313,7 +357,7 @@ const friendsOf=n=>edges(n).filter(f=>f.st==='ok').map(f=>oth(f,n));
 const incOf=n=>edges(n).filter(f=>f.st==='req'&&f.from!==n).map(f=>f.from);
 const outOf=n=>edges(n).filter(f=>f.st==='req'&&f.from===n).map(f=>oth(f,n));
 const av=(n,c,big)=>{const p=safePic((db.users[n]||{}).pic);return `<div class="av${big?' big':''}${c?' tap':''}"${c?` data-a="prof" data-n="${esc(n)}"`:''} style="${p?`background:url(${p}) center/cover`:`background:hsl(${hue(n)} 55% 45%)`}">${p?'':esc(Array.from(nm(n))[0]||'?')}</div>`};
-const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(nm(n))}</span>`;
+const nameTag=n=>`<span class="who tap" data-a="prof" data-n="${esc(n)}" style="color:${rc(n)}">${esc(nm(n))}</span>${(db.users[n]||{}).bot?'<span class="botbadge">BOT</span>':''}`;
 const key=()=>v.t==='server'?'official:'+v.ch:'dm:'+fk(me,v.peer);
 const msgsOf=k=>(db.msgs[k]||[]).filter(m=>!m.del&&!m.pv);
 const burger=()=>`<button class="burger" data-a="nav" aria-label="Open menu">☰${UNR?`<span class="dot">${UNR>9?'9+':UNR}</span>`:''}</button>`;
@@ -384,11 +428,11 @@ function push(){
 function mergeIn(p,dmKey,svid){
   if(!p||typeof p!=='object')return false;
   let ch=false;const live=[],ivNew=[],sane=o=>o&&typeof o==='object'&&Number.isFinite(o.m);
-  if(!dmKey)for(const s of (svid?['sv','mb','ch','roles']:SECS)){
+  if(!dmKey)for(const s of (svid?['sv','mb','ch','roles','bi']:SECS)){
     const r=p[s];if(!r||typeof r!=='object')continue;
     for(const id in r){if(!okId(id)||!sane(r[id]))continue;const a=db[s][id];
       if(svid){if(s==='sv'?id!==svid:r[id].s!==svid)continue}else if((s==='roles'||s==='ch')&&r[id].s&&r[id].s!=='official')continue;
-      if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(s==='iv'&&!validIv(r[id]))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true;if(s==='iv'&&!a&&r[id].to===me&&!r[id].del&&Date.now()>BURST)ivNew.push(r[id])}}
+      if(s==='fr'&&a&&a.st==='ok'&&!a.del&&r[id].st==='req'&&!r[id].del&&(r[id].gen||0)<=(a.gen||0))continue;if(s==='iv'&&!validIv(r[id]))continue;if(s==='users'&&(r[id].bot||/\.bot$/.test(id))&&!(/\.bot$/.test(id)&&(r[id].del||validBot(r[id]))))continue;if(!a||r[id].m>a.m){db[s][id]=r[id];ch=true;if(s==='iv'&&!a&&r[id].to===me&&!r[id].del&&Date.now()>BURST)ivNew.push(r[id])}}
   }
   const mk=p.msgs&&typeof p.msgs==='object'?p.msgs:{};
   for(const k in mk){
@@ -409,7 +453,7 @@ function mergeIn(p,dmKey,svid){
     }
     if(add)L.sort((x,y)=>x.t-y.t);
   }
-  if(ch){applyDir();save();if(me&&!getU(me)){signOut();return true}renderSoon();live.forEach(([k,n])=>{try{notifyMsg(k,n)}catch(e){}});ivNew.forEach(r=>{try{notifyInvite(r)}catch(e){}})}
+  if(ch){applyDir();save();if(me&&!getU(me)){signOut();return true}renderSoon();live.forEach(([k,n])=>{try{notifyMsg(k,n)}catch(e){}try{botHook(k,n)}catch(e){}});ivNew.forEach(r=>{try{notifyInvite(r)}catch(e){}})}
   return ch;
 }
 function onHub(c,d){
@@ -470,13 +514,14 @@ function onDM(c,d){
 
 /* ---------- servers live on their owner's device ---------- */
 const SVH={},JOINW={},SWANT={};
-const emptySv=p=>!p||(['sv','mb','ch','roles'].every(s=>!Object.keys(p[s]||{}).length)&&!Object.keys(p.msgs||{}).length);
+const emptySv=p=>!p||(['sv','mb','ch','roles','bi'].every(s=>!Object.keys(p[s]||{}).length)&&!Object.keys(p.msgs||{}).length);
 function pickSv(sid,since){
-  const p={sv:{},mb:{},ch:{},roles:{},msgs:{}},x=db.sv[sid];
+  const p={sv:{},mb:{},ch:{},roles:{},bi:{},msgs:{}},x=db.sv[sid];
   if(x&&x.m>=since)p.sv[sid]=x;
   for(const k in db.mb){const r=db.mb[k];if(r.s===sid&&r.m>=since)p.mb[k]=r}
   for(const id in db.ch){const c=db.ch[id];if(c.s!==sid)continue;if(c.m>=since)p.ch[id]=c;const L=db.msgs['official:'+id];if(L){const l=L.filter(m=>m.m>=since);if(l.length)p.msgs['official:'+id]=l}}
   for(const id in db.roles){const r=db.roles[id];if(r.s===sid&&r.m>=since)p.roles[id]=r}
+  for(const id in db.bi){const r=db.bi[id];if(r.s===sid&&r.m>=since)p.bi[id]=r}
   return p;
 }
 function redactFor(p,sid,u){
@@ -485,7 +530,7 @@ function redactFor(p,sid,u){
 }
 /* the host checks every change against the sender's permissions before applying it */
 function authSv(sid,u,p){
-  const out={sv:{},mb:{},ch:{},roles:{},msgs:{}},own=isOwner(u,sid),O=o=>o&&typeof o==='object';
+  const out={sv:{},mb:{},ch:{},roles:{},bi:{},msgs:{}},own=isOwner(u,sid),O=o=>o&&typeof o==='object';
   if(own&&O(p.sv)&&O(p.sv[sid])&&db.sv[sid])out.sv[sid]={...p.sv[sid],id:sid,owner:db.sv[sid].owner};
   if(O(p.mb))for(const k in p.mb){
     const r=p.mb[k];if(!O(r)||r.s!==sid||typeof r.u!=='string'||k!==sid+'|'+r.u)continue;
@@ -494,6 +539,7 @@ function authSv(sid,u,p){
     if(ok)out.mb[k]=r;
   }
   if(O(p.ch)&&can('chan',u,sid))for(const id in p.ch){const r=p.ch[id];if(O(r)&&r.s===sid)out.ch[id]=r}
+  if(O(p.bi)&&own)for(const id in p.bi){const r=p.bi[id];if(O(r)&&r.s===sid&&typeof r.b==='string'&&id===sid+'|'+r.b)out.bi[id]=r}
   if(O(p.roles)&&own)for(const id in p.roles){const r=p.roles[id];if(O(r)&&r.s===sid)out.roles[id]=r}
   if(O(p.msgs))for(const k in p.msgs){
     if(!/^official:[\w-]{1,40}$/.test(k)||!Array.isArray(p.msgs[k]))continue;
@@ -517,7 +563,7 @@ function hostSv(c,d,sid,x){
     if(isBanned(u,sid))return c.send({k:d.k,t:'deny',msg:'You’re banned from this server.'});
     if(!isMember(u,sid)){
       if(!(typeof d.code==='string'&&x.ic&&d.code===x.ic))return c.send({k:d.k,t:'deny',msg:'That invite code isn’t valid.'});
-      const k=sid+'|'+u,old=db.mb[k];db.mb[k]={s:sid,u,st:'in',by:'invite',m:Math.max(now(),(old?old.m:0)+1)};changed();
+      const k=sid+'|'+u,old=db.mb[k];db.mb[k]={s:sid,u,st:'in',by:'invite',m:Math.max(now(),(old?old.m:0)+1)};changed();try{botJoinHook(sid,u)}catch(e){}
     }
   }else if(!isMember(u,sid))return c.send({k:d.k,t:'deny',msg:'You’re not a member of this server.'});
   if(!SVH[sid])SVH[sid]=new Set();
@@ -582,6 +628,7 @@ const svConns=sid=>{const o=[];if(SVH[sid])for(const c of SVH[sid])if(c.open)o.p
 async function svPutBlob(sid,id){const b=await getBlob(id);if(!b||b.size>16*1024*1024)return;const buf=await b.arrayBuffer();for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'putb',u:me,id,ty:b.type,buf})}
 function svWantBlob(sid,id,type){if(SWANT[id]&&Date.now()-SWANT[id].t0<8000)return;SWANT[id]={sid,type,t0:Date.now()};for(const c of svConns(sid))c.send({k:'sv:'+sid,t:'getb',u:me,id})}
 const IVD=7*864e5;
+const validBot=r=>r&&r.bot===1&&typeof r.owner==='string'&&/^[a-z0-9._-]{2,20}$/.test(r.owner)&&['blocks','js','py'].includes(r.kind)&&typeof r.js==='string'&&r.js.length<=40000&&typeof r.src==='string'&&r.src.length<=60000&&typeof r.nick==='string'&&r.nick.length<=24&&(r.desc===undefined||(typeof r.desc==='string'&&r.desc.length<=160));
 const validIv=r=>r&&typeof r==='object'&&['to','from','owner'].every(k=>typeof r[k]==='string'&&/^[a-z0-9._-]{2,20}$/.test(r[k]))&&okId(r.sid)&&typeof r.name==='string'&&r.name.length<=32&&typeof r.code==='string'&&/^[a-z0-9]{6,20}$/.test(r.code);
 const myInvites=()=>me?Object.values(db.iv).filter(r=>!r.del&&r.to===me&&now()-r.m<IVD&&svRec(r.sid)&&!isMember(me,r.sid)&&!isBanned(me,r.sid)).sort((a,b)=>b.m-a.m):[];
 const invServers=()=>Object.values(db.sv).filter(x=>!x.del&&x.ic&&isMember(me,x.id)&&(isOwner(me,x.id)||can('invite',me,x.id)));
@@ -710,6 +757,7 @@ function signOut(){endCall();vcLeave();me=null;stopSelf();try{localStorage.remov
 async function signIn(name,pw){
   name=name.trim().toLowerCase();
   if(!/^[a-z0-9._-]{2,20}$/.test(name))return 'Use 2–20 letters, numbers, dots, dashes or underscores for the username.';
+  if(/\.bot$/.test(name))return 'Names ending in .bot are reserved for bots.';
   if(pw.length<4)return 'Password must be at least 4 characters.';
   if(!window.crypto||!crypto.subtle)return 'Passwords need a secure (https) page. Open the site over https.';
   const u=getU(name);
@@ -727,6 +775,7 @@ function addFriend(raw){
   if(!n)return v.note=['er','Enter a username.'];
   if(n===me)return v.note=['er','You can’t add yourself.'];
   if(!getU(n))return v.note=['er','No employee “'+n+'” has an account yet.'];
+  if(db.users[n].bot)return v.note=['er','Bots can’t be friends.'];
   if(friendsOf(me).includes(n))return v.note=['er','You’re already friends with '+n+'.'];
   if(incOf(me).includes(n)){accept(n);return v.note=['ok','You and '+n+' are now friends.']}
   if(outOf(me).includes(n))return v.note=['er','Request to '+n+' is already pending.'];
@@ -750,7 +799,7 @@ function slowText(c){
 function send(text){
   text=text.trim();if(!text||v.t==='home')return false;
   if(v.t==='server'){const c=chan(v.ch);if(!c||!canPost(c)||slowLeft(c)>0)return false}
-  const k=key(),rec={id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)};if(v.reply&&v.reply.k===k)rec.re=v.reply.id;v.reply=null;typSent=0;(db.msgs[k]=db.msgs[k]||[]).push(rec);changed();return true;
+  const k=key(),rec={id:newId(),u:me,t:now(),m:now(),x:text.slice(0,2000)};if(v.reply&&v.reply.k===k)rec.re=v.reply.id;v.reply=null;typSent=0;(db.msgs[k]=db.msgs[k]||[]).push(rec);changed();try{botHook(k,rec)}catch(e){}return true;
 }
 function fmt(ts){
   const d=new Date(ts),t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -1207,6 +1256,552 @@ if(notiBarEl)notiBarEl.addEventListener('click',e=>{
   else{NOTI.skip=true;notiBar()}
 });
 
+/* ---------- bots: Python translator, runtime, sandbox runner, Blockly blocks ---------- */
+/* ---- Python (a practical subset) -> ES5 JavaScript for the bot sandbox ---- */
+const PY_BUILTINS={len:'__len',str:'__str',int:'__int',float:'__float',range:'__range',sorted:'__sorted',sum:'__sum',min:'__min',max:'__max',abs:'Math.abs',round:'__round',list:'__list',enumerate:'__enumerate',reversed:'__reversed',print:'__print',bool:'__truth',any:'__any',all:'__all',zip:'__zip',repr:'__repr',dict:'__dictcall'};
+function py2js(source){
+  const KW=new Set(['and','or','not','in','is','if','elif','else','while','for','def','return','pass','break','continue','import','from','global','True','False','None']);
+  const UNSUP={lambda:'lambda',class:'classes',try:'try/except',except:'try/except',finally:'try/except',with:'with',del:'del',assert:'assert',yield:'yield',raise:'raise',nonlocal:'nonlocal',async:'async',await:'await'};
+  const OPS=['**=','//=','==','!=','<=','>=','+=','-=','*=','/=','%=','**','//','+','-','*','/','%','<','>','=','(',')','[',']','{','}',',',':','.'];
+  const q=s=>JSON.stringify(s).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+  const unesc=s=>s.replace(/\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|\n|.)/g,(m,c)=>c==='n'?'\n':c==='t'?'\t':c==='r'?'\r':c==='0'?'\0':c==='\n'?'':(c[0]==='x'||c[0]==='u')&&c.length>1?String.fromCharCode(parseInt(c.slice(1),16)):c);
+  let curLine=1;const err=(m,l)=>{throw new Error('Line '+(l||curLine)+': '+m)};
+
+  function tokenize(src,line0){
+    const toks=[],ind=[0],text=String(src).replace(/\r\n?/g,'\n').replace(/\t/g,'    ')+'\n';
+    let i=0,line=line0||1,depth=0,atStart=true;
+    while(i<text.length){
+      if(atStart&&depth===0){
+        let j=i,w=0;while(text[j]===' '){w++;j++}
+        if(text[j]==='\n'){i=j+1;line++;continue}
+        if(text[j]==='#'){while(j<text.length&&text[j]!=='\n')j++;i=j+1;line++;continue}
+        if(w>ind[ind.length-1]){ind.push(w);toks.push({t:'indent',line})}
+        else{while(w<ind[ind.length-1]){ind.pop();toks.push({t:'dedent',line})}if(w!==ind[ind.length-1])err('The indentation doesn’t line up with an earlier block.',line)}
+        i=j;atStart=false;
+      }
+      const c=text[i];
+      if(c==='\n'){i++;if(depth>0){line++;continue}toks.push({t:'nl',line});line++;atStart=true;continue}
+      if(c===' '){i++;continue}
+      if(c==='#'){while(i<text.length&&text[i]!=='\n')i++;continue}
+      if(c==='\\'&&text[i+1]==='\n'){i+=2;line++;continue}
+      const sm=/^([fFrRbBuU]{0,2})('''|"""|'|")/.exec(text.slice(i,i+5));
+      if(sm){
+        const pre=sm[1].toLowerCase(),qq=sm[2],start=line;let j=i+sm[0].length,raw='';
+        for(;;){
+          if(j>=text.length)err('This text is missing its closing quote.',start);
+          if(text.startsWith(qq,j)){j+=qq.length;break}
+          if(text[j]==='\\'){raw+=text[j]+(text[j+1]||'');if(text[j+1]==='\n')line++;j+=2;continue}
+          if(text[j]==='\n'){if(qq.length===1)err('This text is missing its closing quote.',start);line++}
+          raw+=text[j++];
+        }
+        toks.push(pre.indexOf('f')>-1?{t:'fstr',v:raw,r:pre.indexOf('r')>-1,line:start}:{t:'str',v:pre.indexOf('r')>-1?raw:unesc(raw),line:start});
+        i=j;continue;
+      }
+      const nm=/^(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)/.exec(text.slice(i,i+40));
+      if(nm){toks.push({t:'num',v:Number(nm[1].replace(/_/g,'')),line});i+=nm[1].length;continue}
+      const id=/^[A-Za-z_][A-Za-z0-9_]*/.exec(text.slice(i,i+80));
+      if(id){toks.push({t:'name',v:id[0],line});i+=id[0].length;continue}
+      const op=OPS.find(o=>text.startsWith(o,i));
+      if(!op)err('I don’t understand the character “'+c+'”.',line);
+      if('([{'.indexOf(op)>-1)depth++;else if(')]}'.indexOf(op)>-1)depth--;
+      toks.push({t:'op',v:op,line});i+=op.length;
+    }
+    if(!toks.length||toks[toks.length-1].t!=='nl')toks.push({t:'nl',line});
+    while(ind.length>1){ind.pop();toks.push({t:'dedent',line})}toks.push({t:'eof',line});
+    return toks;
+  }
+
+  let toks=tokenize(source),p=0,tmp=0;
+  const scopes=[{vars:new Set(),globals:new Set(),params:new Set()}];
+  const peek=()=>toks[p],next=()=>(curLine=toks[p].line,toks[p++]);
+  const isOp=v=>toks[p].t==='op'&&toks[p].v===v,isKw=v=>toks[p].t==='name'&&toks[p].v===v;
+  const eatOp=v=>{if(isOp(v)){p++;return true}return false},eatKw=v=>{if(isKw(v)){p++;return true}return false};
+  const expectOp=v=>{if(!eatOp(v))err('Expected “'+v+'” here.',peek().line)};
+  const expectT=t=>{if(peek().t!==t)err('Something is wrong with the indentation or the end of this line.',peek().line);return next()};
+  const declare=n=>{const s=scopes[scopes.length-1];if(!s.globals.has(n)&&!s.params.has(n))s.vars.add(n)};
+  const bin=(a,op,b)=>op==='+'?'__add('+a+','+b+')':op==='*'?'__mul('+a+','+b+')':op==='/'?'__div('+a+','+b+')':op==='//'?'__fdiv('+a+','+b+')':op==='%'?'__mod('+a+','+b+')':op==='**'?'Math.pow('+a+','+b+')':'('+a+op+b+')';
+
+  function sub(code,line){ // parse an expression found inside an f-string
+    const st=toks,sp=p;toks=tokenize(code,line);p=0;
+    try{const e=expr();if(peek().t!=='nl')err('I can’t read this part of the f-string: {'+code+'}',line);return e}finally{toks=st;p=sp}
+  }
+  function fstring(tok){
+    const raw=tok.v,parts=[];let lit='',k=0;
+    const flush=()=>{if(lit){parts.push(q(tok.r?lit:unesc(lit)));lit=''}};
+    while(k<raw.length){
+      const ch=raw[k];
+      if(ch==='{'&&raw[k+1]==='{'){lit+='{';k+=2;continue}
+      if(ch==='}'&&raw[k+1]==='}'){lit+='}';k+=2;continue}
+      if(ch==='{'){
+        let d=1,j=k+1;while(j<raw.length&&d>0){if(raw[j]==='{')d++;else if(raw[j]==='}'){d--;if(!d)break}j++}
+        if(d)err('An f-string has a { without a closing }.',tok.line);
+        const inner=raw.slice(k+1,j);let ex=inner,spec='',dd=0;
+        for(let z=0;z<inner.length;z++){const c2=inner[z];if('([{'.indexOf(c2)>-1)dd++;else if(')]}'.indexOf(c2)>-1)dd--;else if(c2===':'&&dd===0){ex=inner.slice(0,z);spec=inner.slice(z+1);break}else if(c2==='"'||c2==="'"){const e=inner.indexOf(c2,z+1);if(e>-1)z=e}}
+        let conv='';const cm=/!([rs])\s*$/.exec(ex);if(cm){conv=cm[1];ex=ex.slice(0,cm.index)}
+        flush();const val=sub(ex,tok.line);parts.push(spec?'__fmt('+val+','+q(spec)+')':conv==='r'?'__repr('+val+')':'__str('+val+')');k=j+1;continue;
+      }
+      lit+=ch;k++;
+    }
+    flush();return parts.length?'('+parts.join('+')+')':'""';
+  }
+  function args(){
+    const pos=[],kw=[];
+    while(!isOp(')')){
+      if(peek().t==='name'&&toks[p+1].t==='op'&&toks[p+1].v==='='&&!KW.has(peek().v)){const k=next().v;p++;kw.push(q(k)+':'+expr())}
+      else pos.push(expr());
+      if(!eatOp(','))break;
+    }
+    expectOp(')');return {pos,kw};
+  }
+  function strings(t){let s=t.t==='str'?q(t.v):fstring(t);while(peek().t==='str'||peek().t==='fstr'){const n2=next();s+='+'+(n2.t==='str'?q(n2.v):fstring(n2))}return '('+s+')'}
+  function atom(){
+    const t=next();
+    if(t.t==='num')return String(t.v);
+    if(t.t==='str'||t.t==='fstr')return strings(t);
+    if(t.t==='name'){
+      if(t.v==='True')return 'true';if(t.v==='False')return 'false';if(t.v==='None')return 'null';
+      if(UNSUP[t.v])err('“'+UNSUP[t.v]+'” isn’t supported in bot Python yet.',t.line);
+      if(KW.has(t.v))err('Unexpected “'+t.v+'”.',t.line);
+      return t.v;
+    }
+    if(t.t==='op'){
+      if(t.v==='('){
+        if(eatOp(')'))return '[]';
+        const first=expr();
+        if(isKw('for'))err('Generator expressions aren’t supported. Use a list [ … ] instead.',t.line);
+        if(eatOp(',')){const items=[first];while(!isOp(')')){items.push(expr());if(!eatOp(','))break}expectOp(')');return '['+items.join(',')+']'}
+        expectOp(')');return '('+first+')';
+      }
+      if(t.v==='['){
+        if(eatOp(']'))return '[]';
+        const first=expr();
+        if(isKw('for')){
+          next();const targets=[];do{targets.push(next().v)}while(eatOp(','));
+          if(!eatKw('in'))err('Expected “in” in the list comprehension.',peek().line);
+          const it=orTest();let cond='true';if(eatKw('if'))cond='__truth('+orTest()+')';expectOp(']');
+          return '(function(){var __r=[],__a=__iter('+it+'),__i;for(__i=0;__i<__a.length;__i++){'+targets.map((x,z)=>'var '+x+'='+(targets.length>1?'__a[__i]['+z+']':'__a[__i]')+';').join('')+'if('+cond+')__r.push('+first+')}return __r})()';
+        }
+        const items=[first];while(eatOp(',')){if(isOp(']'))break;items.push(expr())}expectOp(']');return '['+items.join(',')+']';
+      }
+      if(t.v==='{'){
+        const items=[];
+        while(!isOp('}')){const k=expr();if(!eatOp(':'))err('Sets aren’t supported. Use a list, or a dictionary like {"a": 1}.',t.line);items.push('['+k+','+expr()+']');if(!eatOp(','))break}
+        expectOp('}');return '__dict(['+items.join(',')+'])';
+      }
+    }
+    err('I didn’t expect “'+(t.v===undefined?t.t:t.v)+'” here.',t.line);
+  }
+  function postfix(){
+    let e=atom(),bare=/^[A-Za-z_]\w*$/.test(e)?e:null,base=null,attr=null;
+    for(;;){
+      if(eatOp('(')){
+        const a=args(),kw=a.kw.length?'{'+a.kw.join(',')+'}':null;
+        if(attr!==null)e='__m('+base+','+q(attr)+',['+a.pos.join(',')+'])';
+        else if(bare&&PY_BUILTINS[bare]){e=PY_BUILTINS[bare]+'('+a.pos.concat(kw&&bare!=='print'?[kw]:[]).join(',')+')'}
+        else{if(kw)err('Keyword arguments (name=value) only work with built-in functions.',peek().line);e=e+'('+a.pos.join(',')+')'}
+        bare=base=attr=null;
+      }else if(eatOp('[')){
+        let lo=null,hi=null,sl=false;
+        if(!isOp(':'))lo=expr();
+        if(eatOp(':')){sl=true;if(!isOp(']'))hi=expr()}
+        expectOp(']');e=sl?'__slice('+e+','+(lo===null?'null':lo)+','+(hi===null?'null':hi)+')':'__idx('+e+','+lo+')';bare=base=attr=null;
+      }else if(eatOp('.')){
+        const n2=next();if(n2.t!=='name')err('Expected a name after “.”.',n2.line);
+        base=e;attr=n2.v;e=e+'.'+n2.v;bare=null;
+      }else break;
+    }
+    if(bare&&PY_BUILTINS[bare])return PY_BUILTINS[bare];
+    return e;
+  }
+  const power=()=>{const b=postfix();return eatOp('**')?'Math.pow('+b+','+factor()+')':b};
+  function factor(){if(eatOp('-'))return '(-'+factor()+')';if(eatOp('+'))return '(+'+factor()+')';return power()}
+  function term(){let a=factor();for(;;){const o=['*','/','//','%'].find(isOp);if(!o)break;p++;a=bin(a,o,factor())}return a}
+  function arith(){let a=term();for(;;){const o=['+','-'].find(isOp);if(!o)break;p++;a=bin(a,o,term())}return a}
+  function comparison(){
+    const first=arith(),parts=[];let left=first;
+    for(;;){
+      let op=null;
+      const co=['==','!=','<','>','<=','>='].find(isOp);
+      if(co){op=co;p++}
+      else if(isKw('in')){p++;op='in'}
+      else if(isKw('not')&&toks[p+1].t==='name'&&toks[p+1].v==='in'){p+=2;op='not in'}
+      else if(isKw('is')){p++;op=eatKw('not')?'is not':'is'}
+      else break;
+      const r=arith();
+      parts.push(op==='=='?'__eq('+left+','+r+')':op==='!='?'!__eq('+left+','+r+')':op==='in'?'__in('+left+','+r+')':op==='not in'?'!__in('+left+','+r+')':op==='is'?'('+left+'==='+r+')':op==='is not'?'('+left+'!=='+r+')':'('+left+op+r+')');
+      left=r;
+    }
+    return parts.length?(parts.length===1?parts[0]:'('+parts.join('&&')+')'):first;
+  }
+  const notTest=()=>eatKw('not')?'!__truth('+notTest()+')':comparison();
+  function andTest(){let a=notTest();while(eatKw('and')){const b=notTest();a='__and('+a+',function(){return '+b+'})'}return a}
+  function orTest(){let a=andTest();while(eatKw('or')){const b=andTest();a='__or('+a+',function(){return '+b+'})'}return a}
+  function expr(){const a=orTest();if(isKw('if')){p++;const c=orTest();if(!eatKw('else'))err('Expected “else” in this one-line if.',peek().line);const b=expr();return '(__truth('+c+')?'+a+':'+b+')'}return a}
+  function exprList(){const a=expr();if(isOp(',')){const items=[a];while(eatOp(',')){if(peek().t==='nl'||isOp('=')||isOp(':'))break;items.push(expr())}return '['+items.join(',')+']'}return a}
+
+  const wrap=lines=>lines.map(l=>'  '+l);
+  function body(){
+    if(peek().t==='nl'){p++;expectT('indent');const out=[];while(peek().t!=='dedent'&&peek().t!=='eof'){if(peek().t==='nl'){p++;continue}out.push(...stmt())}expectT('dedent');return out}
+    return stmt();
+  }
+  function endStmt(){if(peek().t==='nl')p++;else if(peek().t!=='eof'&&peek().t!=='dedent')err('I didn’t expect “'+(peek().v===undefined?peek().t:peek().v)+'” at the end of this line.',peek().line)}
+  function setter(e){
+    if(/^[A-Za-z_]\w*$/.test(e)){declare(e);return v=>e+'='+v+';'}
+    const m=/^__idx\(([\s\S]*),((?:[^,()]|\([^()]*\))*)\)$/.exec(e);if(m)return v=>'__setidx('+m[1]+','+m[2]+','+v+');';
+    if(/^[A-Za-z_][\w.]*\.[A-Za-z_]\w*$/.test(e))return v=>e+'='+v+';';
+    err('That can’t be assigned to.',peek().line);
+  }
+  function splitTop(s){const out=[];let d=0,cur='',inS=null;for(let z=0;z<s.length;z++){const c2=s[z];if(inS){cur+=c2;if(c2==='\\'){cur+=s[++z]}else if(c2===inS)inS=null;continue}if(c2==='"'||c2==="'"){inS=c2;cur+=c2;continue}if('([{'.indexOf(c2)>-1)d++;if(')]}'.indexOf(c2)>-1)d--;if(c2===','&&d===0){out.push(cur);cur=''}else cur+=c2}if(cur)out.push(cur);return out}
+
+  function stmt(){
+    const t=peek();
+    if(t.t==='name'){
+      if(UNSUP[t.v])err('“'+UNSUP[t.v]+'” isn’t supported in bot Python yet.',t.line);
+      if(t.v==='pass'){p++;endStmt();return []}
+      if(t.v==='break'||t.v==='continue'){p++;endStmt();return [t.v+';']}
+      if(t.v==='return'){p++;let v='null';if(peek().t!=='nl'&&peek().t!=='eof')v=exprList();endStmt();return ['return '+v+';']}
+      if(t.v==='global'){p++;const s=scopes[scopes.length-1];do{const n2=next().v;s.globals.add(n2);s.vars.delete(n2)}while(eatOp(','));endStmt();return []}
+      if(t.v==='import'||t.v==='from'){p++;const names=[];while(peek().t!=='nl'&&peek().t!=='eof')names.push(next().v);endStmt();if(!['random','math'].includes(names[0]))err('The module “'+names[0]+'” isn’t available in bots. You can use random and math.',t.line);return []}
+      if(t.v==='if'){
+        p++;const out=[];let c=expr();expectOp(':');out.push('if(__truth('+c+')){',...wrap(body()),'}');
+        while(isKw('elif')){p++;c=expr();expectOp(':');out.push('else if(__truth('+c+')){',...wrap(body()),'}')}
+        if(isKw('else')){p++;expectOp(':');out.push('else{',...wrap(body()),'}')}
+        return out;
+      }
+      if(t.v==='while'){p++;const c=expr();expectOp(':');return ['while(__truth('+c+')){',...wrap(body()),'}']}
+      if(t.v==='for'){
+        p++;const names=[];do{const n2=next();if(n2.t!=='name')err('Expected a loop variable.',n2.line);names.push(n2.v);declare(n2.v)}while(eatOp(','));
+        if(!eatKw('in'))err('Expected “in” after the loop variable.',peek().line);
+        const it=exprList();expectOp(':');const id=++tmp,A='__a'+id,I='__i'+id;
+        const assign=names.length>1?names.map((x,z)=>x+'='+A+'['+I+']['+z+'];').join(''):names[0]+'='+A+'['+I+'];';
+        return ['var '+A+'=__iter('+it+');','for(var '+I+'=0;'+I+'<'+A+'.length;'+I+'++){',...wrap([assign,...body()]),'}'];
+      }
+      if(t.v==='def'){
+        p++;const name=next().v;expectOp('(');const params=[],defs=[];
+        while(!isOp(')')){const pn=next().v;params.push(pn);if(eatOp('='))defs.push('if('+pn+'===undefined)'+pn+'='+expr()+';');if(!eatOp(','))break}
+        expectOp(')');expectOp(':');declare(name);
+        scopes.push({vars:new Set(),globals:new Set(),params:new Set(params)});
+        const b=body(),sc=scopes.pop(),vars=[...sc.vars];
+        return ['function '+name+'('+params.join(',')+'){',...wrap([...(vars.length?['var '+vars.join(',')+';']:[]),...defs,...b]),'}'];
+      }
+    }
+    const first=exprList();
+    const aug=['+=','-=','*=','/=','//=','%=','**='].find(isOp);
+    if(aug){p++;const v=exprList();endStmt();return [setter(first)(bin(first,aug.slice(0,-1),v))]}
+    if(isOp('=')){
+      const lhs=[first];while(eatOp('='))lhs.push(exprList());endStmt();
+      const rhs=lhs.pop();
+      if(lhs.length===1&&/^\[[\s\S]*\]$/.test(lhs[0])&&splitTop(lhs[0].slice(1,-1)).length>1){
+        const names=splitTop(lhs[0].slice(1,-1)),id=++tmp,out=['var __t'+id+'=__list('+rhs+');'];
+        names.forEach((nm,z)=>out.push(setter(nm.trim())('__t'+id+'['+z+']')));return out;
+      }
+      return lhs.map(l=>setter(l)(rhs));
+    }
+    endStmt();return [first+';'];
+  }
+
+  const lines=[];
+  while(peek().t!=='eof'){
+    if(peek().t==='nl'){p++;continue}
+    if(peek().t==='indent')err('This line is indented, but nothing above it starts a block.',peek().line);
+    lines.push(...stmt());
+  }
+  const top=[...scopes[0].vars];
+  return (top.length?'var '+top.join(',')+';\n':'')+lines.join('\n');
+}
+
+/* ---- what every bot can use (ES5, runs inside the sandboxed interpreter) ---- */
+const BOT_PRELUDE=[
+"function reply(t){__reply(String(t))}",
+"function send(t,c){__send(String(t),c===undefined||c===null?'':String(c))}",
+"function log(x){__log(String(x))}",
+"function lc(s){return String(s).toLowerCase()}",
+"function randInt(a,b){return a+Math.floor(Math.random()*(b-a+1))}",
+"var store={get:function(k){return __sget(String(k))},set:function(k,v){__sset(String(k),String(v))}};",
+"var random={random:function(){return Math.random()},randint:function(a,b){return a+Math.floor(Math.random()*(b-a+1))},choice:function(l){if(!l||!l.length)throw new Error('IndexError: cannot choose from an empty list');return l[Math.floor(Math.random()*l.length)]},shuffle:function(l){for(var i=l.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=l[i];l[i]=l[j];l[j]=t}return null}};",
+"var math={pi:Math.PI,e:Math.E,sqrt:Math.sqrt,floor:Math.floor,ceil:Math.ceil,fabs:Math.abs,pow:Math.pow,sin:Math.sin,cos:Math.cos,tan:Math.tan,log:Math.log,exp:Math.exp};"
+].join('\n');
+const PY_RUNTIME=[
+"function __truth(x){if(x===null||x===undefined||x===false||x===0||x==='')return false;if(typeof x==='number'&&x!==x)return false;if(Array.isArray(x))return x.length>0;if(typeof x==='object')return Object.keys(x).length>0;return true}",
+"function __and(a,f){return __truth(a)?f():a}",
+"function __or(a,f){return __truth(a)?a:f()}",
+"function __eq(a,b){if(Array.isArray(a)&&Array.isArray(b)){if(a.length!==b.length)return false;for(var i=0;i<a.length;i++)if(!__eq(a[i],b[i]))return false;return true}if(a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b)){var ka=Object.keys(a),kb=Object.keys(b);if(ka.length!==kb.length)return false;for(var j=0;j<ka.length;j++)if(!__eq(a[ka[j]],b[ka[j]]))return false;return true}return a===b}",
+"function __in(a,b){if(typeof b==='string'){if(typeof a!=='string')throw new Error('TypeError: \"in\" on text needs text on the left');return b.indexOf(a)>-1}if(Array.isArray(b)){for(var i=0;i<b.length;i++)if(__eq(a,b[i]))return true;return false}return b!==null&&typeof b==='object'&&Object.prototype.hasOwnProperty.call(b,a)}",
+"function __add(a,b){if(Array.isArray(a)&&Array.isArray(b))return a.concat(b);if(typeof a==='string'&&typeof b==='string')return a+b;if(typeof a==='string'||typeof b==='string')throw new Error('TypeError: you can only add text to text. Use str() to turn a number into text.');return a+b}",
+"function __mul(a,b){var s=typeof a==='string'||Array.isArray(a)?a:b,n=s===a?b:a;if((typeof s==='string'||Array.isArray(s))&&typeof n==='number'){var out=typeof s==='string'?'':[];for(var i=0;i<n;i++)out=typeof s==='string'?out+s:out.concat(s);return out}return a*b}",
+"function __div(a,b){if(b===0)throw new Error('ZeroDivisionError: division by zero');return a/b}",
+"function __fdiv(a,b){if(b===0)throw new Error('ZeroDivisionError: division by zero');return Math.floor(a/b)}",
+"function __mod(a,b){if(typeof a==='string'){var args=Array.isArray(b)?b:[b],k=0;return a.replace(/%[sdr%]/g,function(m){if(m==='%%')return '%';var v=args[k++];return m==='%d'?String(Math.floor(v)):__str(v)})}if(b===0)throw new Error('ZeroDivisionError: modulo by zero');return ((a%b)+b)%b}",
+"function __len(x){if(typeof x==='string'||Array.isArray(x))return x.length;if(x&&typeof x==='object')return Object.keys(x).length;throw new Error('TypeError: this value has no length')}",
+"function __idx(a,i){if(typeof a==='string'||Array.isArray(a)){if(typeof i!=='number')throw new Error('TypeError: list positions must be numbers');var k=i<0?a.length+i:i;if(k<0||k>=a.length)throw new Error('IndexError: position '+i+' is out of range');return a[k]}if(a&&typeof a==='object'){if(!Object.prototype.hasOwnProperty.call(a,i))throw new Error('KeyError: '+__repr(i));return a[i]}throw new Error('TypeError: this value can’t be indexed')}",
+"function __setidx(a,i,v){if(Array.isArray(a)){var k=i<0?a.length+i:i;if(k<0||k>=a.length)throw new Error('IndexError: position '+i+' is out of range');a[k]=v}else if(a&&typeof a==='object'){a[i]=v}else throw new Error('TypeError: this value can’t be changed by position')}",
+"function __slice(a,i,j){var n=a.length;i=i===null?0:(i<0?Math.max(0,n+i):Math.min(i,n));j=j===null?n:(j<0?Math.max(0,n+j):Math.min(j,n));return a.slice(i,j)}",
+"function __repr(x){if(x===null||x===undefined)return 'None';if(x===true)return 'True';if(x===false)return 'False';if(typeof x==='string')return \"'\"+x.replace(/\\\\/g,'\\\\\\\\').replace(/'/g,\"\\\\'\")+\"'\";if(Array.isArray(x)){var o=[];for(var i=0;i<x.length;i++)o.push(__repr(x[i]));return '['+o.join(', ')+']'}if(typeof x==='object'){var ks=Object.keys(x),p=[];for(var j=0;j<ks.length;j++)p.push(__repr(ks[j])+': '+__repr(x[ks[j]]));return '{'+p.join(', ')+'}'}return String(x)}",
+"function __str(x){return typeof x==='string'?x:__repr(x)}",
+"function __print(){var a=[];for(var i=0;i<arguments.length;i++)a.push(__str(arguments[i]));log(a.join(' '))}",
+"function __int(x,base){if(typeof x==='number')return x<0?Math.ceil(x):Math.floor(x);if(typeof x==='boolean')return x?1:0;var s=String(x).replace(/^\\s+|\\s+$/g,'');if(!/^[+-]?\\d+$/.test(s)&&!(base&&/^[0-9a-zA-Z]+$/.test(s)))throw new Error('ValueError: can’t turn '+__repr(x)+' into a whole number');return parseInt(s,base||10)}",
+"function __float(x){var n=typeof x==='number'?x:parseFloat(String(x));if(n!==n)throw new Error('ValueError: can’t turn '+__repr(x)+' into a number');return n}",
+"function __range(a,b,c){if(b===undefined){b=a;a=0}c=c===undefined?1:c;if(c===0)throw new Error('ValueError: range step can’t be 0');var o=[];if(c>0)for(var i=a;i<b&&o.length<100000;i+=c)o.push(i);else for(var j=a;j>b&&o.length<100000;j+=c)o.push(j);return o}",
+"function __iter(x){if(Array.isArray(x))return x;if(typeof x==='string')return x.split('');if(x&&typeof x==='object')return Object.keys(x);throw new Error('TypeError: this can’t be looped over')}",
+"function __list(x){if(x===undefined)return [];return __iter(x).slice()}",
+"function __dict(pairs){var o={};for(var i=0;i<pairs.length;i++)o[pairs[i][0]]=pairs[i][1];return o}",
+"function __dictcall(x){return x===undefined?{}:__dict(x)}",
+"function __cmp(a,b){return a<b?-1:a>b?1:0}",
+"function __sorted(l,o){var r=__list(l);r.sort(__cmp);if(o&&o.reverse)r.reverse();return r}",
+"function __reversed(l){return __list(l).reverse()}",
+"function __sum(l,s){var t=s||0,a=__iter(l);for(var i=0;i<a.length;i++)t+=a[i];return t}",
+"function __flat(a){return a.length===1&&Array.isArray(a[0])?a[0]:a}",
+"function __min(){var a=__flat(arguments);if(!a.length)throw new Error('ValueError: min() needs at least one value');var m=a[0];for(var i=1;i<a.length;i++)if(a[i]<m)m=a[i];return m}",
+"function __max(){var a=__flat(arguments);if(!a.length)throw new Error('ValueError: max() needs at least one value');var m=a[0];for(var i=1;i<a.length;i++)if(a[i]>m)m=a[i];return m}",
+"function __round(x,n){var f=Math.pow(10,n||0),r=Math.round(x*f)/f;return n?r:Math.round(x)}",
+"function __enumerate(l,s){var a=__iter(l),o=[];s=s||0;for(var i=0;i<a.length;i++)o.push([i+s,a[i]]);return o}",
+"function __zip(){var o=[],n=1e9,i,j;for(i=0;i<arguments.length;i++)n=Math.min(n,__iter(arguments[i]).length);for(i=0;i<n;i++){var t=[];for(j=0;j<arguments.length;j++)t.push(__iter(arguments[j])[i]);o.push(t)}return o}",
+"function __any(l){var a=__iter(l);for(var i=0;i<a.length;i++)if(__truth(a[i]))return true;return false}",
+"function __all(l){var a=__iter(l);for(var i=0;i<a.length;i++)if(!__truth(a[i]))return false;return true}",
+"function __pad(s,w,left,ch){s=String(s);while(s.length<w)s=left?ch+s:s+ch;return s}",
+"function __fmt(x,spec){var m=/^([<>^]?)(\\d*)(,?)(?:\\.(\\d+))?([fdsg%]?)$/.exec(spec);if(!m)return __str(x);var al=m[1],w=+m[2]||0,c=m[3],pr=m[4],ty=m[5],s;if(ty==='f'||ty==='%'||pr!==undefined&&typeof x==='number'){var v=ty==='%'?x*100:x;s=pr!==undefined?(Math.round(v*Math.pow(10,+pr))/Math.pow(10,+pr)).toFixed(+pr):String(v);if(ty==='%')s+='%'}else s=__str(x);if(c&&typeof x==='number'){var parts=s.split('.');parts[0]=parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g,',');s=parts.join('.')}return al==='<'?__pad(s,w,false,' '):al==='^'?(function(){var t=__pad(s,Math.floor((w+s.length)/2),true,' ');return __pad(t,w,false,' ')})():__pad(s,w,typeof x==='number'||al==='>',' ')}",
+"function __m(o,n,a){",
+" if(typeof o==='string'){switch(n){",
+"  case 'lower':return o.toLowerCase();case 'upper':return o.toUpperCase();case 'strip':return o.replace(/^\\s+|\\s+$/g,'');case 'lstrip':return o.replace(/^\\s+/,'');case 'rstrip':return o.replace(/\\s+$/,'');",
+"  case 'split':return a.length&&a[0]!==null?o.split(a[0]):o.replace(/^\\s+|\\s+$/g,'').split(/\\s+/).filter(function(x){return x.length});",
+"  case 'join':return __iter(a[0]).join(o);case 'startswith':return o.slice(0,a[0].length)===a[0];case 'endswith':return a[0].length===0||o.slice(-a[0].length)===a[0];",
+"  case 'replace':return o.split(a[0]).join(a[1]);case 'find':return o.indexOf(a[0]);case 'count':return a[0]===''?o.length+1:o.split(a[0]).length-1;",
+"  case 'title':return o.replace(/\\w\\S*/g,function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()});case 'capitalize':return o.charAt(0).toUpperCase()+o.slice(1).toLowerCase();",
+"  case 'isdigit':return /^\\d+$/.test(o);case 'isalpha':return /^[A-Za-z]+$/.test(o);case 'zfill':return __pad(o,a[0],true,'0');",
+"  case 'format':var k=0;return o.replace(/\\{\\}/g,function(){return __str(a[k++])});",
+"  }}",
+" else if(Array.isArray(o)){switch(n){",
+"  case 'append':o.push(a[0]);return null;case 'extend':for(var i=0;i<a[0].length;i++)o.push(a[0][i]);return null;case 'insert':o.splice(a[0]<0?Math.max(0,o.length+a[0]):a[0],0,a[1]);return null;",
+"  case 'pop':if(!o.length)throw new Error('IndexError: pop from an empty list');return a.length?o.splice(a[0]<0?o.length+a[0]:a[0],1)[0]:o.pop();",
+"  case 'remove':for(var j=0;j<o.length;j++)if(__eq(o[j],a[0])){o.splice(j,1);return null}throw new Error('ValueError: that item isn’t in the list');",
+"  case 'index':for(var q=0;q<o.length;q++)if(__eq(o[q],a[0]))return q;throw new Error('ValueError: that item isn’t in the list');",
+"  case 'count':var c=0;for(var z=0;z<o.length;z++)if(__eq(o[z],a[0]))c++;return c;",
+"  case 'sort':o.sort(__cmp);if(a.length&&a[0]&&a[0].reverse)o.reverse();return null;case 'reverse':o.reverse();return null;case 'copy':return o.slice();case 'clear':o.length=0;return null;",
+"  }}",
+" else if(o&&typeof o==='object'){",
+"  if(typeof o[n]==='function')return o[n].apply(o,a);",
+"  switch(n){case 'get':return Object.prototype.hasOwnProperty.call(o,a[0])?o[a[0]]:(a.length>1?a[1]:null);case 'keys':return Object.keys(o);",
+"  case 'values':return Object.keys(o).map(function(k){return o[k]});case 'items':return Object.keys(o).map(function(k){return [k,o[k]]});",
+"  case 'update':for(var kk in a[0])o[kk]=a[0][kk];return null;case 'pop':var pv=o[a[0]];if(!Object.prototype.hasOwnProperty.call(o,a[0])){if(a.length>1)return a[1];throw new Error('KeyError: '+__repr(a[0]))}delete o[a[0]];return pv;",
+"  case 'setdefault':if(!Object.prototype.hasOwnProperty.call(o,a[0]))o[a[0]]=a.length>1?a[1]:null;return o[a[0]];case 'copy':return __dict(Object.keys(o).map(function(k){return [k,o[k]]}));",
+"  case 'clear':Object.keys(o).forEach(function(k){delete o[k]});return null;}}",
+" throw new Error('AttributeError: this value has no method '+n+'()');",
+"}"
+].join('\n');
+
+/* ---- runs a bot's JavaScript inside the sandboxed interpreter ---- */
+function botExec(js,kind,evName,arg,ctx){
+  const IC=typeof window!=='undefined'&&window.JSInterpreter?(window.JSInterpreter.default||window.JSInterpreter):(typeof __IC!=='undefined'?__IC:null);
+  const out=[],logs=[],store=ctx.store||{};let err='';
+  if(!IC)return{out,logs,err:'The bot engine hasn’t loaded yet.'};
+  const STEPS=ctx.steps||400000,MS=ctx.ms||400;
+  try{
+    const src=BOT_PRELUDE+'\n'+(kind==='py'?PY_RUNTIME+'\n':'')+js;
+    const it=new IC(src,(interp,g)=>{
+      const nf=(name,fn)=>interp.setProperty(g,name,interp.createNativeFunction(fn));
+      nf('__reply',t=>{if(out.length<(ctx.maxOut||5))out.push({text:String(t).slice(0,500),ch:''})});
+      nf('__send',(t,c)=>{if(out.length<(ctx.maxOut||5))out.push({text:String(t).slice(0,500),ch:String(c||'').slice(0,40)})});
+      nf('__sget',k=>{const x=store[String(k)];return x===undefined?null:x});
+      nf('__sset',(k,v)=>{k=String(k).slice(0,40);if(k in store||Object.keys(store).length<30)store[k]=String(v).slice(0,500)});
+      nf('__log',t=>{if(logs.length<50)logs.push(String(t).slice(0,300))});
+    });
+    let n=0;const t0=Date.now();
+    const drain=()=>{while(it.step()){if(++n>STEPS)throw new Error('The bot ran for too long and was stopped.');if((n&1023)===0&&Date.now()-t0>MS)throw new Error('The bot took too long and was stopped.')}};
+    drain();
+    const a=JSON.stringify(arg).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+    const camel=evName,snake=evName==='onMessage'?'on_message':'on_join';
+    it.appendCode('if(typeof '+camel+'==="function"){'+camel+'('+a+')}else if(typeof '+snake+'==="function"){'+snake+'('+a+')}');
+    drain();
+  }catch(e){err=String(e&&e.message||e).replace(/^Uncaught\s*/,'').slice(0,300)}
+  return{out,logs,err};
+}
+
+/* ---- Blockly: bot blocks, toolbox and JavaScript generators ---- */
+function botBlocksSetup(Blockly){
+  const G=Blockly.JavaScript,ORD=G.Order||{ATOMIC:G.ORDER_ATOMIC,MEMBER:G.ORDER_MEMBER,LOGICAL_AND:G.ORDER_LOGICAL_AND,NONE:G.ORDER_NONE,COMMA:G.ORDER_COMMA,RELATIONAL:G.ORDER_RELATIONAL};
+  if(Blockly.Blocks['bot_reply'])return;
+  Blockly.defineBlocksWithJsonArray([
+    {type:'bot_on_message',message0:'when a message is posted %1 %2',args0:[{type:'input_dummy'},{type:'input_statement',name:'DO'}],colour:20,tooltip:'Runs every time someone posts a message in your server.'},
+    {type:'bot_on_join',message0:'when someone joins %1 %2',args0:[{type:'input_dummy'},{type:'input_statement',name:'DO'}],colour:20,tooltip:'Runs when a new member joins your server.'},
+    {type:'bot_reply',message0:'reply with %1',args0:[{type:'input_value',name:'TEXT'}],previousStatement:null,nextStatement:null,colour:160,tooltip:'Posts a message in the channel where the message was posted.'},
+    {type:'bot_send',message0:'send %1 to channel %2',args0:[{type:'input_value',name:'TEXT'},{type:'field_input',name:'CHANNEL',text:'general'}],previousStatement:null,nextStatement:null,colour:160,tooltip:'Posts a message in the channel with this name.'},
+    {type:'bot_msg',message0:'message %1',args0:[{type:'field_dropdown',name:'F',options:[['text','text'],['author (username)','author'],['author nickname','nick'],['channel','channel']]}],output:null,colour:20,tooltip:'Details about the message that was just posted.'},
+    {type:'bot_msg_has',message0:'message contains %1',args0:[{type:'input_value',name:'TEXT',check:'String'}],output:'Boolean',colour:20,tooltip:'True if the message includes this text (ignores capital letters).'},
+    {type:'bot_user',message0:'new member %1',args0:[{type:'field_dropdown',name:'F',options:[['nickname','nick'],['username','name']]}],output:'String',colour:20},
+    {type:'bot_remember',message0:'remember %1 as %2',args0:[{type:'field_input',name:'KEY',text:'score'},{type:'input_value',name:'VALUE'}],previousStatement:null,nextStatement:null,colour:290,tooltip:'Saves a value so the bot can use it later, even after restarting.'},
+    {type:'bot_recall',message0:'recall %1',args0:[{type:'field_input',name:'KEY',text:'score'}],output:null,colour:290,tooltip:'Reads a saved value (empty if nothing was saved).'}
+  ]);
+  const q=s=>JSON.stringify(String(s));
+  G.forBlock['bot_on_message']=(b,g)=>'function onMessage(msg) {\n'+g.statementToCode(b,'DO')+'}\n';
+  G.forBlock['bot_on_join']=(b,g)=>'function onJoin(user) {\n'+g.statementToCode(b,'DO')+'}\n';
+  G.forBlock['bot_reply']=(b,g)=>'reply('+(g.valueToCode(b,'TEXT',ORD.NONE)||"''")+');\n';
+  G.forBlock['bot_send']=(b,g)=>'send('+(g.valueToCode(b,'TEXT',ORD.NONE)||"''")+', '+q(b.getFieldValue('CHANNEL'))+');\n';
+  G.forBlock['bot_msg']=(b,g)=>['msg.'+b.getFieldValue('F'),ORD.MEMBER];
+  G.forBlock['bot_msg_has']=(b,g)=>["lc(msg.text).indexOf(lc("+(g.valueToCode(b,'TEXT',ORD.NONE)||"''")+")) > -1",ORD.RELATIONAL];
+  G.forBlock['bot_user']=(b,g)=>['user.'+b.getFieldValue('F'),ORD.MEMBER];
+  G.forBlock['bot_remember']=(b,g)=>'store.set('+q(b.getFieldValue('KEY'))+', '+(g.valueToCode(b,'VALUE',ORD.NONE)||"''")+');\n';
+  G.forBlock['bot_recall']=(b,g)=>['store.get('+q(b.getFieldValue('KEY'))+')',ORD.MEMBER];
+}
+const BOT_TOOLBOX={kind:'categoryToolbox',contents:[
+  {kind:'category',name:'Bot',colour:'20',contents:['bot_on_message','bot_on_join','bot_reply','bot_send','bot_msg','bot_msg_has','bot_user','bot_remember','bot_recall'].map(type=>({kind:'block',type}))},
+  {kind:'category',name:'Logic',colour:'210',contents:['controls_if','logic_compare','logic_operation','logic_negate','logic_boolean','logic_ternary'].map(type=>({kind:'block',type}))},
+  {kind:'category',name:'Loops',colour:'120',contents:[{kind:'block',type:'controls_repeat_ext',inputs:{TIMES:{shadow:{type:'math_number',fields:{NUM:3}}}}},{kind:'block',type:'controls_whileUntil'},{kind:'block',type:'controls_for'},{kind:'block',type:'controls_forEach'},{kind:'block',type:'controls_flow_statements'}]},
+  {kind:'category',name:'Math',colour:'230',contents:[{kind:'block',type:'math_number'},{kind:'block',type:'math_arithmetic'},{kind:'block',type:'math_modulo'},{kind:'block',type:'math_round'},{kind:'block',type:'math_random_int',inputs:{FROM:{shadow:{type:'math_number',fields:{NUM:1}}},TO:{shadow:{type:'math_number',fields:{NUM:6}}}}}]},
+  {kind:'category',name:'Text',colour:'160',contents:['text','text_join','text_length','text_isEmpty','text_indexOf','text_changeCase','text_trim'].map(type=>({kind:'block',type}))},
+  {kind:'category',name:'Lists',colour:'260',contents:['lists_create_with','lists_getIndex','lists_length','lists_isEmpty','lists_indexOf','lists_split'].map(type=>({kind:'block',type}))},
+  {kind:'sep'},
+  {kind:'category',name:'Variables',colour:'330',custom:'VARIABLE'},
+  {kind:'category',name:'Functions',colour:'290',custom:'PROCEDURE'}
+]};
+const BOT_STARTER={blocks:{languageVersion:0,blocks:[{type:'bot_on_message',x:24,y:24,inputs:{DO:{block:{type:'controls_if',inputs:{IF0:{block:{type:'bot_msg_has',inputs:{TEXT:{shadow:{type:'text',fields:{TEXT:'hello'}}}}}},DO0:{block:{type:'bot_reply',inputs:{TEXT:{block:{type:'text_join',extraState:{itemCount:2},inputs:{ADD0:{shadow:{type:'text',fields:{TEXT:'Hi '}}},ADD1:{block:{type:'bot_msg',fields:{F:'nick'}}}}}}}}}}}}}}]}};
+
+
+/* ---------- bots: running them on the server owner's device, and the editor ---------- */
+const JSI_URL='https://cdn.jsdelivr.net/npm/js-interpreter@6.0.2/lib/js-interpreter.min.js',BL_BASE='https://cdn.jsdelivr.net/npm/blockly@10.4.3/';
+const loadScript=src=>new Promise((res,rej)=>{const e=document.createElement('script');e.src=src;e.onload=res;e.onerror=()=>rej(new Error('Couldn’t load '+src));document.head.appendChild(e)});
+let interpP=null,blocklyP=null;
+const loadInterp=()=>window.JSInterpreter?Promise.resolve():(interpP||(interpP=loadScript(JSI_URL).catch(e=>{interpP=null;throw e})));
+const loadBlockly=()=>window.Blockly&&window.Blockly.JavaScript&&window.Blockly.Msg&&window.Blockly.Msg.ADD_COMMENT?Promise.resolve():(blocklyP||(blocklyP=(async()=>{for(const f of ['blockly_compressed.js','blocks_compressed.js','javascript_compressed.js','msg/en.js'])await loadScript(BL_BASE+f)})().catch(e=>{blocklyP=null;throw e})));
+const installedBots=sid=>Object.values(db.bi).filter(r=>r.s===sid&&!r.del&&db.users[r.b]&&!db.users[r.b].del&&db.users[r.b].bot).map(r=>r.b);
+let BSTORE=null;const BOTRL={};
+const bsLoad=()=>{if(!BSTORE){try{BSTORE=JSON.parse(localStorage.getItem('hrs_bs_'+me))||{}}catch(e){BSTORE={}}}return BSTORE};
+const bsSave=()=>{try{localStorage.setItem('hrs_bs_'+me,JSON.stringify(BSTORE))}catch(e){}};
+function botPost(sid,bot,text,chName,origin){
+  const t=Date.now(),rl=(BOTRL[sid+'|'+bot]=(BOTRL[sid+'|'+bot]||[]).filter(x=>t-x<20000));if(rl.length>=6)return false;
+  let cid=origin;
+  if(chName){const c=chans(sid).find(x=>!x.vc&&x.name===cname(chName));if(c)cid=c.id}
+  const c=db.ch[cid];if(!c||c.vc||(c.s||'official')!==sid)return false;
+  rl.push(t);(db.msgs['official:'+cid]=db.msgs['official:'+cid]||[]).push({id:newId(),u:bot,t:now(),m:now(),x:String(text).slice(0,500)});return true;
+}
+async function botRunEvent(sid,bot,ev,arg,origin){
+  const rec=db.users[bot];if(!rec||!rec.bot)return;
+  try{await loadInterp()}catch(e){return}
+  const st=bsLoad(),key=sid+'|'+bot,store=st[key]=st[key]||{},before=JSON.stringify(store);
+  const r=botExec(rec.js,rec.kind,ev,arg,{store,maxOut:5,steps:400000,ms:400});
+  let posted=false;for(const o of r.out)if(botPost(sid,bot,o.text,o.ch,origin))posted=true;
+  if(JSON.stringify(store)!==before)bsSave();
+  if(r.err)console.warn('[bot '+bot+']',r.err);
+  if(posted)changed();
+}
+function botHook(k,m){
+  if(!me||!k.startsWith('official:')||m.pv||m.del||(db.users[m.u]||{}).bot)return;
+  const cid=k.slice(9),c=db.ch[cid];if(!c||c.vc||!c.s||c.s==='official')return;
+  const x=db.sv[c.s];if(!x||x.del||x.owner!==me)return;
+  for(const b of installedBots(c.s))botRunEvent(c.s,b,'onMessage',{text:m.x||'',author:m.u,nick:dnS(m.u,c.s),channel:c.name,id:m.id},cid);
+}
+function botJoinHook(sid,u){
+  const x=db.sv[sid];if(!x||x.del||x.owner!==me)return;
+  const c=chans(sid).find(z=>!z.vc);if(!c)return;
+  for(const b of installedBots(sid))botRunEvent(sid,b,'onJoin',{name:u,nick:dnS(u,sid)},c.id);
+}
+function botAdd(sid,bot){
+  if(sid==='official'||!isOwner(me,sid)||!db.sv[sid]||!db.users[bot]||!db.users[bot].bot)return 'You can add bots to servers you own.';
+  if(installedBots(sid).length>=10&&!installedBots(sid).includes(bot))return 'A server can have up to 10 bots.';
+  const id=sid+'|'+bot,old=db.bi[id];db.bi[id]={id,s:sid,b:bot,by:me,m:Math.max(now(),(old?old.m:0)+1)};changed();return '';
+}
+function botRemove(sid,bot){const r=db.bi[sid+'|'+bot];if(!r||!isOwner(me,sid))return;r.del=1;bump(r);changed()}
+function deleteBot(bot){const b=db.users[bot];if(!b||!b.bot||(b.owner!==me&&me!==ADMIN))return;db.users[bot]={del:1,m:Math.max(now(),(b.m||0)+1)};changed()}
+function botProfile(n){
+  const t=db.users[n],N=esc(n),own=t.owner===me||me===ADMIN,sid=SVID(),here=v.t==='server'&&sid!=='official'&&isOwner(me,sid)&&db.sv[sid],on=installedBots(sid).includes(n);
+  return `<div class="phead">${av(n,0,1)}<div><div class="pname">${esc(dn(n))} <span class="botbadge">BOT</span></div><div class="sub" style="margin:-4px 0 6px;font-size:13px">by ${esc(dn(t.owner))} · ${t.kind==='blocks'?'Blocks':t.kind==='js'?'JavaScript':'Python'}</div></div></div>${t.desc?`<p class="mp">${esc(t.desc)}</p>`:''}<div class="acts">${here?(on?`<button class="btn no" data-a="botrm" data-n="${N}">Remove from this server</button>`:`<button class="btn" data-a="botadd" data-n="${N}">Add to this server</button>`):''}${own?`<button class="btn sec" data-a="botedit" data-n="${N}">Edit</button><button class="btn no" data-a="botdel" data-n="${N}">Delete bot</button>`:''}</div>`;
+}
+function botsModal(){
+  const sid=SVID(),here=v.t==='server'&&sid!=='official'&&isOwner(me,sid)&&db.sv[sid],inst=new Set(installedBots(sid)),l=botUsers();
+  return `<h2>Bots</h2><p class="mp">${here?'Bots run on your device while you’re online, so they only answer when your device is.':'Bots are small programs that reply to messages. A server’s owner can add them from the server menu.'}</p>${l.length?l.map(b=>{const t=db.users[b],N=esc(b),own=t.owner===me||me===ADMIN;return `<div class="rr"><div class="row" style="border-top:0;padding:0 0 4px"><div class="nm">${esc(dn(b))} <span class="botbadge">BOT</span><span class="sub">by ${esc(dn(t.owner))} · ${t.kind==='blocks'?'Blocks':t.kind==='js'?'JavaScript':'Python'}${t.desc?' · '+esc(t.desc):''}</span></div></div><div class="acts" style="margin-top:4px">${here?(inst.has(b)?`<button class="btn no" data-a="botrm" data-n="${N}">Remove</button>`:`<button class="btn" data-a="botadd" data-n="${N}">Add</button>`):''}${own?`<button class="btn sec" data-a="botedit" data-n="${N}">Edit</button><button class="btn no" data-a="botdel" data-n="${N}">Delete</button>`:''}</div></div>`}).join(''):'<div class="empty">No bots yet. Create the first one!</div>'}<div id="cerr" class="note er"></div><div class="acts"><button class="btn" data-a="botnew">Create a bot</button><button class="btn sec" data-a="mclose">Close</button></div>`;
+}
+
+/* ---- the bot editor (blocks / JavaScript / Python) ---- */
+const BE={kind:'blocks',ws:null,editing:null};
+const $b=id=>document.getElementById(id);
+const BE_JS=`// Runs every time someone posts a message in your server.\n// msg.text, msg.author, msg.nick, msg.channel\nfunction onMessage(msg) {\n  if (msg.text.toLowerCase().indexOf('hello') > -1) {\n    reply('Hi ' + msg.nick + '!');\n  }\n}\n`;
+const BE_PY=`# Runs every time someone posts a message in your server.\n# msg.text, msg.author, msg.nick, msg.channel\ndef on_message(msg):\n    if "hello" in msg.text.lower():\n        reply("Hi " + msg.nick + "!")\n`;
+function beKind(k){
+  BE.kind=k;
+  document.querySelectorAll('#botedit .betabs button').forEach(b=>b.classList.toggle('on',b.dataset.b==='k-'+k));
+  $b('beBlocks').hidden=k!=='blocks';$b('beJs').hidden=k!=='js';$b('bePy').hidden=k!=='py';
+  if(k==='blocks')beBlocksInit();
+}
+async function beBlocksInit(){
+  try{await loadBlockly()}catch(e){beOut('Couldn’t load the block editor. Check your connection and try again.','er');return}
+  botBlocksSetup(window.Blockly);
+  if(!BE.ws)BE.ws=Blockly.inject('beBlocks',{toolbox:BOT_TOOLBOX,trashcan:true,scrollbars:true,zoom:{controls:true,wheel:true,startScale:.9},grid:{spacing:20,length:3,colour:'#ccc',snap:true}});
+  if(BE.pending){Blockly.serialization.workspaces.load(BE.pending,BE.ws);BE.pending=null}
+  Blockly.svgResize(BE.ws);
+}
+function beOut(text,cls){const o=$b('beOut');if(!o)return;const d=document.createElement('div');d.className=cls||'';d.textContent=text;if(cls==='clear')o.innerHTML='';else o.appendChild(d)}
+function botOpenEditor(name){
+  const rec=name&&db.users[name]&&db.users[name].bot?db.users[name]:null;
+  if(rec&&rec.owner!==me&&me!==ADMIN)return;
+  BE.editing=rec?name:null;v.modal=null;render();
+  $b('beName').value=rec?rec.nick:'';$b('beDesc').value=rec?(rec.desc||''):'';
+  $b('beJs').value=rec&&rec.kind==='js'?rec.src:BE_JS;$b('bePy').value=rec&&rec.kind==='py'?rec.src:BE_PY;
+  let st=BOT_STARTER;if(rec&&rec.kind==='blocks'){try{st=JSON.parse(rec.src)}catch(e){}}BE.pending=st;
+  $b('beOut').innerHTML='';$b('beHelp').hidden=true;$b('botedit').hidden=false;beKind(rec?rec.kind:'blocks');
+  if(BE.ws&&BE.kind==='blocks'&&BE.pending){Blockly.serialization.workspaces.load(BE.pending,BE.ws);BE.pending=null}
+}
+function beCompile(){
+  const k=BE.kind;let src,js;
+  if(k==='blocks'){
+    if(!BE.ws)throw new Error('The block editor isn’t ready yet.');
+    src=JSON.stringify(Blockly.serialization.workspaces.save(BE.ws));js=Blockly.JavaScript.workspaceToCode(BE.ws);
+    if(!/function on(Message|Join)\b/.test(js))throw new Error('Add a “when a message is posted” (or “when someone joins”) block to your program.');
+  }else if(k==='js'){src=js=$b('beJs').value;if(!/function\s+on(Message|Join)\b/.test(js))throw new Error('Define a function named onMessage(msg) (or onJoin(user)).')}
+  else{src=$b('bePy').value;js=py2js(src);if(!/function\s+on_(message|join)\b/.test(js))throw new Error('Define a function named on_message(msg) (or on_join(user)).')}
+  return{src,js};
+}
+async function beRun(js,kind,ev,arg){
+  await loadInterp();
+  return botExec(js,kind,ev,arg,{store:{},maxOut:5,steps:400000,ms:400});
+}
+async function beTest(){
+  beOut('','clear');
+  try{
+    const {js}=beCompile(),text=$b('beMsg').value.trim()||'hello';
+    const r=await beRun(js,BE.kind,'onMessage',{text,author:me,nick:dn(me),channel:'general',id:'test'});
+    if(r.err)beOut('Error: '+r.err,'er');
+    if(!r.out.length&&!r.err)beOut('The bot didn’t reply to “'+text+'”.');
+    r.out.forEach(o=>beOut('Bot says'+(o.ch?' in #'+o.ch:'')+': '+o.text,'ok'));
+    r.logs.forEach(l=>beOut('log: '+l));
+  }catch(e){beOut(String(e.message||e),'er')}
+}
+async function beSave(){
+  beOut('','clear');
+  try{
+    const nick=$b('beName').value.trim().replace(/\s+/g,' ').slice(0,24),desc=$b('beDesc').value.trim().slice(0,120);
+    if(nick.length<2)throw new Error('Give your bot a name (at least 2 characters).');
+    const {src,js}=beCompile();
+    if(src.length>60000||js.length>40000)throw new Error('This bot is too big. Keep it under about 40,000 characters.');
+    await loadInterp();
+    const IC=window.JSInterpreter.default||window.JSInterpreter;
+    try{new IC(BOT_PRELUDE+'\n'+(BE.kind==='py'?PY_RUNTIME+'\n':'')+js,()=>{})}catch(e){throw new Error('There’s a mistake in the code: '+String(e.message||e).slice(0,200)+(BE.kind==='js'?' (Bots use classic JavaScript: var, function and quotes — no arrow functions or let/const.)':''))}
+    let name=BE.editing;
+    if(!name){
+      if(me!==ADMIN&&botUsers().filter(b=>db.users[b].owner===me).length>=5)throw new Error('You can have up to 5 bots. Delete one first.');
+      const slug=nick.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,14);
+      if(slug.length<2)throw new Error('Use letters or numbers in the bot’s name.');
+      let c=slug+'.bot',i=2;while(db.users[c])c=slug.slice(0,12)+'-'+(i++)+'.bot';name=c;
+    }
+    const old=db.users[name];
+    db.users[name]={h:'!',s:'x',bot:1,owner:old?old.owner:me,kind:BE.kind,src,js,desc,nick,roles:[],m:Math.max(now(),(old?old.m:0)+1)};
+    BE.editing=name;changed();beOut('Saved “'+nick+'”. A server owner can now add it from the server menu.','ok');
+  }catch(e){beOut(String(e.message||e),'er')}
+}
+function beClose(){$b('botedit').hidden=true;try{if(BE.ws)Blockly.hideChaff()}catch(e){}v.modal={t:'bots'};render()}
+const beEl=$b('botedit');
+if(beEl){
+  beEl.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-b]');if(!b)return;const a=b.dataset.b;
+    if(a.startsWith('k-'))beKind(a.slice(2));
+    else if(a==='save')beSave();else if(a==='test')beTest();
+    else if(a==='close')beClose();else if(a==='help')$b('beHelp').hidden=!$b('beHelp').hidden;
+  });
+  beEl.addEventListener('keydown',e=>{
+    if(e.key==='Tab'&&(e.target.id==='beJs'||e.target.id==='bePy')){e.preventDefault();const t=e.target,s0=t.selectionStart;t.value=t.value.slice(0,s0)+'    '+t.value.slice(t.selectionEnd);t.selectionStart=t.selectionEnd=s0+4}
+    if(e.key==='Enter'&&e.target.id==='beMsg'){e.preventDefault();beTest()}
+    if(e.key==='Escape'){beClose()}
+  });
+}
+
 /* ---------- typing indicators ---------- */
 const TYP={};let typSent=0;
 const typRoom=()=>v.t==='server'&&v.ch?'ch:'+v.ch:v.t==='dm'&&v.peer?'dm:'+fk(me,v.peer):null;
@@ -1276,7 +1871,7 @@ function composer(ph,lock,att,top,poll){
 }
 function modalHtml(){
   const m=v.modal;if(!m)return '';let c='';
-  if(m.t==='prof'){
+  if(m.t==='prof'&&(getU(m.n)||{}).bot){c=botProfile(m.n)}else if(m.t==='prof'){
     const n=m.n,t=getU(n);if(!t)return '';
     const self=n===me,N=esc(n),D=esc(nm(n));let act='';
     if(self)act=`<button class="btn sec" data-a="pickpic">Change picture</button>${safePic(t.pic)?'<button class="btn sec" data-a="rmpic">Remove picture</button>':''}<button class="btn no" data-a="del1">Delete account</button>`;
@@ -1289,6 +1884,7 @@ function modalHtml(){
     {const sid=SVID(),ok=v.t==='server'&&sid!=='official'&&!self&&isMember(n,sid)&&!isOwner(n,sid);if(ok&&can('kick',me,sid))act+=`<button class="btn no" data-a="svkick" data-n="${N}">Kick</button>`;if(ok&&can('ban',me,sid))act+=`<button class="btn no" data-a="svban" data-n="${N}">Ban</button>`}
     if(me===ADMIN&&!self&&n!==ADMIN)act+=`<button class="btn no" data-a="admindel" data-n="${N}">Delete account</button>`;
     if(!self&&invServers().some(x=>!isMember(n,x.id)&&!isBanned(n,x.id)))act+=`<button class="btn sec" data-a="invpick" data-n="${N}">Invite to server…</button>`;
+    if(self)act+=`<button class="btn sec" data-a="botsopen">Bots…</button>`;
     if(self&&notiSupported())act+=`<button class="btn sec" data-a="notitoggle">${Notification.permission==='denied'?'Notifications blocked by browser':(notiOn()?'Notifications: on':'Notifications: off')}</button>`;
     const have=Array.isArray(t.roles)?t.roles:[];
     const rl=can('assign')?`<div class="cap">Set roles</div><div class="chips">${roleList().map(r=>`<button class="chip ${have.includes(r.id)?'on':''}" style="--c:${col(r.color)}" data-a="pfrole" data-n="${N}" data-r="${esc(r.id)}">${esc(r.name)}</button>`).join('')||'<span class="sub">No roles yet. Create one under Manage roles.</span>'}</div>`:'';
@@ -1321,6 +1917,8 @@ function modalHtml(){
   }else if(m.t==='nick'){
     const t=getU(m.n);if(!t)return '';const sv=m.scope==='server',cur=sv?snickOf(t,m.sv||SVID()):t.nick;
     c=`<h2>${sv?(m.n===me?'Change your server nickname':'Server nickname for '+esc(dn(m.n))):(m.n===me?'Change your nickname':'Nickname for '+esc(dn(m.n)))}</h2><p class="mp">${sv?'A server nickname is only shown inside the Official server (channels, members and voice). Everywhere else the regular nickname is used.':'Your nickname is shown instead of the username in chats. The username (<b>@'+esc(m.n)+'</b>) doesn’t change and is still used to sign in and for @mentions.'}</p><input id="nickin" value="${esc(m.draft??(cur||''))}" placeholder="${esc(sv?dn(m.n):m.n)}" maxlength="32" autocomplete="off" aria-label="${sv?'Server nickname':'Nickname'}"><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button>${cur?'<button class="btn sec" data-a="nickreset">Reset</button>':''}<button class="btn" data-a="nicksave">Save</button></div>`;
+  }else if(m.t==='bots'){
+    c=botsModal();
   }else if(m.t==='svadd'){
     const ivs=myInvites();
     c=`<h2>Add a server</h2>${ivs.length?`<div class="cap">Invitations (${ivs.length})</div>${ivs.map(r=>`<div class="row" style="padding:6px 0"><div class="nm">${esc(r.name)}<span class="sub">from ${esc(dn(r.from))}</span></div><button class="btn" data-a="ivacc" data-n="${esc(r.id)}">Accept</button><button class="btn no" data-a="ivdec" data-n="${esc(r.id)}">Decline</button></div>`).join('')}`:''}<div class="cap">Create your own</div><div class="addbox"><input id="svname" placeholder="Server name" maxlength="32" aria-label="Server name"><button class="btn" data-a="svcreate">Create</button></div><span class="sub">You’ll be the owner, with full control of its channels, roles and members.</span><div class="cap">Join with an invite</div><div class="addbox"><input id="svcode" placeholder="Invite code or link" aria-label="Invite code"><button class="btn" data-a="svjoin">Join</button></div><div id="cerr" class="note er"></div><div class="acts"><button class="btn sec" data-a="mclose">Close</button></div>`;
@@ -1335,7 +1933,7 @@ function modalHtml(){
     ${!off&&(own||can('invite',me,sid))&&x.ic?`<div class="cap">Invite people</div><div class="addbox"><input id="svlink" readonly value="${esc(inviteLink(x))}" aria-label="Invite link"><button class="btn" data-a="svcopy">Copy</button></div><span class="sub">Code: <b>${esc(inviteCode(x))}</b> · anyone with it can join while your device is online, unless banned.</span>${own?'<div class="acts"><button class="btn sec" data-a="svreset">New invite code</button></div>':''}`:''}
     ${!off&&x.ic&&(own||can('invite',me,sid))?`<div class="cap">Send an invite</div><div class="addbox"><input id="ivto" placeholder="Username" autocomplete="off" aria-label="Username to invite"><button class="btn" data-a="ivsend" data-n="${esc(sid)}">Invite</button></div><div id="cerr" class="note"></div><div class="chips">${friendsOf(me).filter(f=>!isMember(f,sid)&&!isBanned(f,sid)).slice(0,8).map(f=>`<button class="chip" style="--c:#5865f2" data-a="ivsend" data-n="${esc(sid)}" data-u="${esc(f)}">${esc(dn(f))}</button>`).join('')}</div>`:''}
     ${!off&&can('ban',me,sid)?`<div class="cap">Banned (${bans.length})</div>${bans.length?bans.map(r=>`<div class="row" style="padding:6px 0"><span class="nm">${esc(dn(r.u))}</span><button class="btn sec" data-a="svunban" data-n="${esc(r.u)}">Unban</button></div>`).join(''):'<span class="sub">Nobody is banned.</span>'}`:''}
-    <div class="acts">${!off&&!own?'<button class="btn no" data-a="svleave">Leave server</button>':''}${!off&&own?'<button class="btn no" data-a="svdelete">Delete server</button>':''}<button class="btn sec" data-a="mclose">Close</button></div>`;
+    <div class="acts">${!off&&!own?'<button class="btn no" data-a="svleave">Leave server</button>':''}${!off&&own?'<button class="btn sec" data-a="botsopen">Bots…</button><button class="btn no" data-a="svdelete">Delete server</button>':''}<button class="btn sec" data-a="mclose">Close</button></div>`;
   }else if(m.t==='confirm'){
     c=`<h2>${esc(m.title)}</h2><p class="mp">${esc(m.msg)}</p><div class="acts"><button class="btn sec" data-a="mclose">Cancel</button><button class="btn no" data-a="cfgo">${esc(m.btn)}</button></div>`;
   }else if(m.t==='alert'){
@@ -1387,7 +1985,7 @@ function render(){
       ${adm?'<button class="item" data-a="roles" style="margin-top:12px"><span style="font-size:18px">★</span><span class="nm">Manage roles</span></button>':''}
       ${SVID()==='official'?'<div class="cap" style="padding-top:20px">This server is required for all employees and can’t be left.</div>':''}</div>${meBar}</div>`;
     main=!c?`<div class="main"><div class="mhead">${burger()}${esc(sv0.name)}</div><div class="pane"><div class="empty">${db.sv[SVID()]||SVID()==='official'?'No channels are available for your roles yet.':'Connecting to the server’s owner… This server is stored on their device, so they need to be online.'}</div></div></div>`:c.vc?voiceMain(c,mc):`<div class="main"><div class="mhead">${burger()}<span class="hash">#</span>${esc(c.name)}${mc?`<span class="tools"><button class="tab" data-a="chren" data-n="${esc(c.id)}">Settings</button><button class="tab" data-a="chdup" data-n="${esc(c.id)}">Duplicate</button><button class="tab rm" data-a="chdel" data-n="${esc(c.id)}">Remove</button></span>`:''}</div><div class="body"><div class="chat"><div id="msgs">${msgsHtml()}</div>${composer('Message #'+esc(c.name),!canPost(c),can('video'),`${replyBar()}<div id="slowbar" class="slowbar">${esc(slowText(c))}</div>`,can('poll'))}</div>
-      <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(dnS(n))}</span></button>`).join('')}</aside></div></div>`;
+      <aside class="members"><div class="cap">Members — ${mem.length}</div>${mem.map(n=>`<button class="item" data-a="prof" data-n="${esc(n)}">${av(n)}<span class="nm" style="color:${rc(n)}">${esc(dnS(n))}</span></button>`).join('')}${(()=>{const bl=installedBots(SVID());return bl.length?`<div class="cap">Bots — ${bl.length}</div>`+bl.map(b=>`<button class="item" data-a="prof" data-n="${esc(b)}">${av(b)}<span class="nm">${esc(dn(b))} <span class="botbadge">BOT</span></span></button>`).join(''):''})()}</aside></div></div>`;
   }else{
     side=`<div class="side"><div class="shead">Direct Messages</div><div class="slist">
       <button class="item ${v.t==='home'?'on':''}" data-a="friends"><span style="font-size:20px">☺</span><span class="nm">Friends</span>${pend?`<span class="badge" style="position:static;border:0;margin-left:auto">${pend}</span>`:''}</button>
@@ -1547,6 +2145,7 @@ function purgeUser(u){
     else for(const m of db.msgs[k])if(m.u===u&&!m.del){if(m.v)gone.push(m.v);tomb(m)}
   }
   for(const f of Object.values(db.fr))if(!f.del&&(f.a===u||f.b===u)){f.del=1;bump(f)}
+  for(const n2 of Object.keys(db.users)){const b=db.users[n2];if(b.bot&&b.owner===u&&!b.del)db.users[n2]={del:1,m:Math.max(t,(b.m||0)+1)}}
   for(const r of Object.values(db.mb))if(r.u===u&&!r.del){r.del=1;bump(r)}
   db.users[u]={del:1,m:Math.max(t,((db.users[u]||{}).m||0)+1)};
   gone.forEach(id=>delBlob(id).catch(()=>{}));
@@ -1605,6 +2204,15 @@ root.addEventListener('click',e=>{
     return;
   }
   if(a==='ivdec'){const r=db.iv[n];if(r&&r.to===me){r.del=1;bump(r);changed()}return render()}
+  if(a==='botsopen'){v.modal={t:'bots'};return render()}
+  if(a==='botnew'){botOpenEditor(null);return}
+  if(a==='botedit'){botOpenEditor(n);return}
+  if(a==='botdel'){const t=db.users[n];if(!t||!t.bot||(t.owner!==me&&me!==ADMIN))return;v.modal={t:'confirm',title:'Delete '+dn(n)+'?',msg:'The bot is deleted for everyone and stops working in every server.',btn:'Delete bot',go:'botdel',id:n};return render()}
+  if(a==='botadd'||a==='botrm'){
+    const er=a==='botadd'?botAdd(SVID(),n):(botRemove(SVID(),n),''),el=document.getElementById('cerr');
+    if(er){if(el)el.textContent=er;else notice('Couldn’t add the bot',er);return}
+    return render();
+  }
   if(a==='svdelete'){v.modal={t:'confirm',title:'Delete this server?',msg:'Its channels and messages are deleted for everyone. This can’t be undone.',btn:'Delete server',go:'svdel',sid:v.modal.id};return render()}
   if(a==='svleave'){v.modal={t:'confirm',title:'Leave this server?',msg:'You can rejoin later with an invite code.',btn:'Leave server',go:'svleave',sid:v.modal.id};return render()}
   if(a==='nickreset'){setNick(v.modal.n,'',v.modal.scope,v.modal.sv);v.modal=null;return render()}
@@ -1656,7 +2264,7 @@ root.addEventListener('click',e=>{
   else if(a==='rperm'&&isOwner(me)){const r=db.roles[b.dataset.r],k=b.dataset.p;if(r&&PERMS.some(x=>x[0]===k)){r.p=r.p&&typeof r.p==='object'?{...r.p}:{};r.p[k]=!r.p[k];bump(r);changed()}}
   else if(a==='chtype'&&v.modal&&v.modal.t==='chname'){v.modal.vc=b.dataset.t==='voice'}
   else if(a==='chgo'&&mcan()){if(!submitChan())return}
-  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isOwner(me))doDelRole(m.id);else if(m&&m.go==='kick')modMember(m.id,'out',m.sid);else if(m&&m.go==='ban')modMember(m.id,'ban',m.sid);else if(m&&m.go==='svdel')deleteServer(m.sid);else if(m&&m.go==='userdel'&&me===ADMIN){purgeUser(m.id);changed()}else if(m&&m.go==='svleave')leaveServer(m.sid);else if(m&&m.go==='svjoin'){joinServer(m.code).then(er=>{if(er)notice('Couldn’t join',er);else render()});return}}
+  else if(a==='cfgo'){const m=v.modal;v.modal=null;if(m&&m.go==='msg')doDelMsg(m.k,m.id);else if(m&&m.go==='chan'&&mcan())doDelChan(m.id);else if(m&&m.go==='role'&&isOwner(me))doDelRole(m.id);else if(m&&m.go==='kick')modMember(m.id,'out',m.sid);else if(m&&m.go==='ban')modMember(m.id,'ban',m.sid);else if(m&&m.go==='svdel')deleteServer(m.sid);else if(m&&m.go==='botdel')deleteBot(m.id);else if(m&&m.go==='userdel'&&me===ADMIN){purgeUser(m.id);changed()}else if(m&&m.go==='svleave')leaveServer(m.sid);else if(m&&m.go==='svjoin'){joinServer(m.code).then(er=>{if(er)notice('Couldn’t join',er);else render()});return}}
   else if(a==='mesave'){
     const m0=v.modal,m=(db.msgs[m0.k]||[]).find(x=>x.id===m0.id),t=document.getElementById('medit').value.trim().slice(0,2000);
     if(!m||m.del||m.u!==me)v.modal=null;
